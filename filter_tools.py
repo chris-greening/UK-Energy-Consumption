@@ -10,4 +10,4 @@ def filter_energy_type(df, energy_type):
             series_dict[col] = df[col]
         except KeyError:
             pass
-    return DataFrame.from_dict(series_dict).reset_index(drop=True).T
+    return DataFrame.from_dict(series_dict).reset_index(drop=True)
