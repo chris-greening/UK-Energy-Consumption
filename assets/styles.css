@@ -2,7 +2,11 @@
   padding: 0% 4%;
 }
 
-#bar-plot {
+.top-plot {
   width: 49%;
   display: inline-block;
+}
+
+html {
+  background-color: #F2F8FF
 }
