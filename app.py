@@ -40,6 +40,7 @@ app.layout = html.Div(
     children = [
         html.Div(
             children = [
+                html.H2(id="header-info"),
                 dcc.Graph(
                         id='total-energy-consumption-bar',
                     hoverData={'points': [{'curveNumber': 2, 'pointNumber': 2, 'pointIndex': 2,
@@ -59,6 +60,7 @@ app.layout = html.Div(
         ),
         html.Div(
             children = [
+                html.H2(id="region-info"),
                 dcc.Graph(
                     id="region-time-series-bar",
                     style={'height': '30vh'}
@@ -99,6 +101,20 @@ def update_graph(year_value):
         'paper_bgcolor': '#F2F8FF'
     })
     return fig
+
+@app.callback(
+    Output('header-info', 'children'),
+    Input('total-energy-consumption-year-slider', 'value')
+)
+def update_header(year_value):
+    return f"UK Energy Consumption ({year_value})"
+
+@app.callback(
+    Output('region-info', 'children'),
+    Input('total-energy-consumption-bar', 'hoverData')
+)
+def update_region_header(hoverData):
+    return f"{hoverData['points'][0]['x']} Energy Consumption"
 
 @app.callback(
     Output('region-time-series-bar', 'figure'),
