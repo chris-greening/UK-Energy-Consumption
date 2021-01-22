@@ -5,7 +5,7 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import pandas as pd
 
-from filter_tools import filter_energy_type
+from data_processing import preprocess_dataframe, melt_total_dataframe
 
 def generate_table(dataframe, max_rows=10):
     return html.Table([
@@ -20,101 +20,61 @@ def generate_table(dataframe, max_rows=10):
         ])
     ])
 
-def return_years_df(df: pd.DataFrame):
-    """Return a MultiIndex'd DataFrame based on years"""
-    df = df[df["UNIT"] == "GWh"]
-    df = df[df["NAME"].str.isupper()]
-
-    # Drop the LAUA column
-    df = df.drop(columns=["LAUA"])
-
-    # Reorder the columns
-    descriptive_columns = ["YEAR", "NAME", "UNIT"]
-    other_columns = [col for col in df.columns if col not in descriptive_columns]
-    all_columns = descriptive_columns + other_columns
-    df = df[all_columns]
-
-    # Title the columns and region names
-    df = df.rename(columns={col: col.title() for col in all_columns})
-    df = df.rename(columns={
-        "Bioenergy_All": "Bioenergy_Total",
-        "Total_Coal": "Coal_Total",
-        "Total_Manufactured": "Manufactured_Total",
-        "Total_Petroleum": "Petroleum_Total"
-    })
-    df["Name"] = df["Name"].str.title()
-
-    # Reset the index
-    df = df.reset_index(drop=True)
-
-    # Sort by year then name
-    df = df.sort_values(["Year", "Name"])
-
-    return df.set_index(["Year", "Name"])
-
 df = pd.read_csv("Subnational_total_final_energy_consumption_statistics.csv")
-year_df = return_years_df(df)
+dff = preprocess_dataframe(df)
+energy_source_colors = {
+    "Coal": '#525B76',
+    "Manufactured": '#F4A259',
+    "Petroleum": '#7A89C2',
+    "Gas": '#F9B5AC',
+    "Electricity": '#EE7674',
+    "Bioenergy": '#9DBF9E',
+}
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-app.layout = html.Div(children=[
-    html.Div(id="return-description-string"),
-    html.Div(
-        [
-            html.Div(id="df-output", className="six columns"),
-            dcc.Graph(id='graph-output', className="six columns"),
-        ],
-        className="row"
-    ),
+app.layout = html.Div([
     html.Div([
-        dcc.Dropdown(
-            id='df-year-value',
-            options=[{'label': i, 'value': i}
-                     for i in year_df.index.unique(0)],
-            value='2005',
-            optionHeight=30
-        )],
-        style={"width": "4%", "margin-top": "15px", "font-size":"20px", "height":"50px"}
-    ),
-])
+        dcc.Graph(
+                id='total-energy-consumption-bar',
+                hoverData={'points': [{'customdata': 'South East'}]}
+            ),
+        dcc.Slider(
+                id='total-energy-consumption-year-slider',
+                min=dff['Year'].min(),
+                max=dff['Year'].max(),
+                value=dff['Year'].max(),
+                marks={str(year): str(year) for year in dff['Year'].unique()},
+                step=None
+            )
+        ],
+        id="bar-plot"),
+    ],
+    className="dash"
+)
+
 
 @app.callback(
-    Output(component_id="df-output", component_property="children"),
-    Input(component_id='df-year-value', component_property='value')
+    Output('total-energy-consumption-bar', 'figure'),
+    Input('total-energy-consumption-year-slider', 'value')
 )
-def return_year_df(year):
-    new_df = year_df.loc[int(year)].copy()
-    new_df["Region"] = year_df.loc[int(year)].index.values
-    descriptive_columns = ["Region", "Unit"]
-    energy_columns = [col for col in new_df.columns if "Total" in col]
-    all_columns = descriptive_columns + energy_columns
-    new_df = new_df[all_columns]
-    # new_df["Region"] = year_df.loc[year].Name
-    new_df = generate_table(new_df)
-    return new_df
+def update_graph(year_value):
+    min_y = 0
+    max_y = int(dff.groupby(["Year", "Name"]).sum().max())
 
-@app.callback(
-    Output(component_id="graph-output", component_property="figure"),
-    Input(component_id='df-year-value', component_property='value')
-)
-def return_year_graph(year):
-    new_df = year_df.loc[int(year)].copy()
-    new_df["Region"] = year_df.loc[int(year)].index.values
-    descriptive_columns = ["Region", "Unit"]
-    energy_columns = [col for col in new_df.columns if "Total" in col]
-    all_columns = descriptive_columns + energy_columns
-    new_df = new_df[all_columns]
-    fig = px.bar(new_df, x="Region", y="All_Fuels_Total", color="Region", title=f"Energy consumption in the UK in {year}")
+    year_df = dff[dff["Year"] == year_value]
+    long_year_df = melt_total_dataframe(year_df)
+    fig = px.bar(
+        long_year_df,
+        x="Name",
+        y="GWh",
+        color="Energy type",
+        color_discrete_map=energy_source_colors,
+        range_y=[min_y, max_y]
+    )
     return fig
-
-@app.callback(
-    Output(component_id="return-description-string", component_property="children"),
-    Input(component_id='df-year-value', component_property='value')
-)
-def return_description(year):
-    return html.H3(f"UK Energy Cunsumption ({year})")
 
 if __name__ == '__main__':
     app.run_server(debug=True)
