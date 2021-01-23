@@ -3,7 +3,6 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
 import plotly.express as px
-from plotly.graph_objs import *
 import pandas as pd
 
 from data_processing import preprocess_dataframe, melt_dataframe
@@ -32,50 +31,119 @@ energy_source_colors = {
     "Bioenergy": '#9DBF9E',
 }
 
+markdown_msg = """
+[Source](https://www.gov.uk/government/statistics/total-final-energy-consumption-at-regional-and-local-authority-level-2005-to-2018)
+
+This data represents the total energy consumption at the regional level of the UK between 2005 and 2018.
+
+Hover over a region in the Total Energy Consumption plot to analyze that region's energy consumption as a time-series.
+"""
+
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 app.layout = html.Div(
     children = [
+        html.H1("UK Energy Consumption"),
+        dcc.Markdown(markdown_msg),
         html.Div(
             children = [
-                html.H2(id="header-info"),
+                html.H3(id="header-info"),
                 dcc.Graph(
                         id='total-energy-consumption-bar',
-                    hoverData={'points': [{'curveNumber': 2, 'pointNumber': 2, 'pointIndex': 2,
+                        hoverData={'points': [{'curveNumber': 2, 'pointNumber': 2, 'pointIndex': 2,
                                            'x': 'Greater London', 'y': 36021.306273, 'label': 'Greater London', 'value': 36021.306273}]},
-                        style={'height': '60vh'}
+                        style={'height': '40vh'}
                     ),
-                dcc.Slider(
-                        id='total-energy-consumption-year-slider',
-                        min=dff['Year'].min(),
-                        max=dff['Year'].max(),
-                        value=dff['Year'].max(),
-                        marks={str(year): str(year) for year in dff['Year'].unique()},
-                        step=None
-                    )
             ],
-            className="top-plot"
+            className="top-plot",
+            style={"float":"left"}
         ),
         html.Div(
             children = [
-                html.H2(id="region-info"),
+                html.H3(id="header-percentage-info"),
+                dcc.Graph(
+                    id='total-energy-consumption-percent',
+                    style={'height': '40vh'}
+                ),
+            ],
+            className="top-plot",
+        ),
+        dcc.Slider(
+            id='total-energy-consumption-year-slider',
+            min=dff['Year'].min(),
+            max=dff['Year'].max(),
+            value=dff['Year'].max(),
+            marks={str(year): str(year)
+                   for year in dff['Year'].unique()},
+            step=None
+        ),
+        html.H1(id="region-info"),
+        html.Div(
+            children=[
+                html.H3("Total consumption per year"),
                 dcc.Graph(
                     id="region-time-series-bar",
                     style={'height': '30vh'}
                 ),
+            ],
+            className="bottom-plot",
+            style={"float": "left"}
+        ),
+        html.Div(
+            children = [
+                html.H3("Energy source consumption per year"),
                 dcc.Graph(
                     id="region-time-series-scatter",
                     style={'height': '30vh'}
                 ),
             ],
-            className="top-plot"
-        ),
+            className="bottom-plot"
+        )
     ],
     id="dash"
 )
 
+
+@app.callback(
+    Output('total-energy-consumption-percent', 'figure'),
+    Input('total-energy-consumption-year-slider', 'value')
+)
+def update_graph_percent(year_value):
+
+    year_df = dff[dff["Year"] == year_value]
+    total_consumption_df = year_df.groupby("Name").sum()
+    highest_region = total_consumption_df[total_consumption_df["All_Fuels_Total"]
+                                      == total_consumption_df["All_Fuels_Total"].max()].index
+    highest_region_df = year_df[year_df["Name"] == highest_region[0]]
+    adjusted_df = year_df.copy()
+    adjusted_df.iloc[:, 3:-4] = adjusted_df.iloc[:, 3:-
+                                                4].div(adjusted_df["All_Fuels_Total"], axis=0)
+    long_adjusted_sum_df = pd.melt(adjusted_df, id_vars=["Year", "Name"], value_vars=[
+                                col for col in highest_region_df.columns if "Total" in col and col != "All_Fuels_Total" and "Sector" not in col])
+    long_adjusted_sum_df = long_adjusted_sum_df.rename(
+        columns={"variable": "Energy type", "value": "%"})
+    long_adjusted_sum_df["Energy type"] = long_adjusted_sum_df["Energy type"].str.replace(
+        "_Total", "")
+    long_adjusted_sum_df["%"] = long_adjusted_sum_df["%"] * 100
+
+    fig = px.bar(
+        long_adjusted_sum_df,
+        x="Name",
+        y="%",
+        color="Energy type",
+        animation_frame="Year",
+        range_y=[0, 100],
+        color_discrete_map=energy_source_colors
+    )
+    fig.update_yaxes(title_text="% Usage")
+    fig.update_xaxes(title_text="")
+    fig.update_layout({
+        'plot_bgcolor': '#F2F8FF',
+        'paper_bgcolor': '#F2F8FF'
+    })
+    return fig
 
 @app.callback(
     Output('total-energy-consumption-bar', 'figure'),
@@ -96,6 +164,8 @@ def update_graph(year_value):
         color_discrete_map=energy_source_colors,
         range_y=[min_y, max_y]
     )
+    fig.update_xaxes(title_text="")
+
     fig.update_layout({
         'plot_bgcolor': '#F2F8FF',
         'paper_bgcolor': '#F2F8FF'
@@ -107,30 +177,36 @@ def update_graph(year_value):
     Input('total-energy-consumption-year-slider', 'value')
 )
 def update_header(year_value):
-    return f"UK Energy Consumption ({year_value})"
+    return f"Total Energy Consumption ({year_value})"
+
+
+@app.callback(
+    Output('header-percentage-info', 'children'),
+    Input('total-energy-consumption-year-slider', 'value')
+)
+def update__percentage_header(year_value):
+    return f"Percentage of energy source consumption ({year_value})"
 
 @app.callback(
     Output('region-info', 'children'),
     Input('total-energy-consumption-bar', 'hoverData')
 )
-def update_region_header(hoverData):
-    return f"{hoverData['points'][0]['x']} Energy Consumption"
+def update_region_bar_header(hoverData):
+    return f"{hoverData['points'][0]['x']}"
 
 @app.callback(
     Output('region-time-series-bar', 'figure'),
     Input('total-energy-consumption-bar', 'hoverData')
 )
-def update_region_time_series(hoverData):
+def update_region_bar(hoverData):
     region_df = dff[dff['Name'] == hoverData['points'][0]['x']]
     long_region_df = melt_dataframe(region_df)
 
-    title = f"Energy consumption time series for {hoverData['points'][0]['x']}"
     fig = px.bar(
             long_region_df,
             x="Year",
             y="GWh",
             color="Energy type",
-            title=title,
             color_discrete_map=energy_source_colors,
         )
     fig.update_layout({
@@ -144,7 +220,7 @@ def update_region_time_series(hoverData):
     Output('region-time-series-scatter', 'figure'),
     Input('total-energy-consumption-bar', 'hoverData')
 )
-def update_region_time_series(hoverData):
+def update_region_line(hoverData):
     region_df = dff[dff['Name'] == hoverData['points'][0]['x']]
     long_region_df = melt_dataframe(region_df)
 
