@@ -1,3 +1,5 @@
+import datetime
+
 import dash
 import dash_table
 import dash_core_components as dcc
@@ -46,6 +48,8 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
+# server = app.server
+
 app.layout = html.Div(
     children = [
         html.H1("UK Energy Consumption"),
@@ -57,7 +61,7 @@ app.layout = html.Div(
                         id='total-energy-consumption-bar',
                         hoverData={'points': [{'curveNumber': 2, 'pointNumber': 2, 'pointIndex': 2,
                                            'x': 'Greater London', 'y': 36021.306273, 'label': 'Greater London', 'value': 36021.306273}]},
-                        style={'height': '40vh'}
+                        style={'height': '30vh'}
                     ),
             ],
             className="top-plot",
@@ -68,7 +72,7 @@ app.layout = html.Div(
                 html.H3(id="header-percentage-info"),
                 dcc.Graph(
                     id='total-energy-consumption-percent',
-                    style={'height': '40vh'}
+                    style={'height': '30vh'}
                 ),
             ],
             className="top-plot",
@@ -115,6 +119,19 @@ app.layout = html.Div(
             className="middle-plot"
         ),
         html.Div(
+            children = [
+                html.H3("Cumulative rate of change per energy source"),
+                html.Div(
+                    dcc.Graph(
+                        id="cum-rate-of-change",
+                        style={'height': '30vh'}
+                    ),
+                    # style={"padding": "0% 25%"}
+                ),
+            ],
+            # className="bottom-plot"
+        ),
+        html.Div(
             children=[
                 html.H3("Energy resource usage by the numbers"),
                 html.Div(
@@ -128,28 +145,15 @@ app.layout = html.Div(
                                     'column_id': 'Year',
                                 },
                                 'fontWeight': 'bold',
-                                'backgroundColor': '#e8e8e8'
+                                'backgroundColor': '#e8e8e8',
                             },
                         ]
                     ),
                     # style={"padding": "0% 25%"}
                 )
             ],
-            className="bottom-plot",
-            style={"float": "left"}
-        ),
-        html.Div(
-            children = [
-                html.H3("Cumulative rate of change per energy source"),
-                html.Div(
-                    dcc.Graph(
-                        id="cum-rate-of-change",
-                        style={'height': '30vh'}
-                    ),
-                    # style={"padding": "0% 25%"}
-                ),
-            ],
-            className="bottom-plot"
+            # className="bottom-plot",
+            # style={"float": "left"}
         ),
     ],
     id="dash"
@@ -165,13 +169,14 @@ def update_table(hoverData):
     descriptive_columns = ["Year"]
 
     totals_columns = [
-        col for col in region_df.columns if "Total" in col and col != "All_Fuels_Total"]
+        col for col in region_df.columns if "Total" in col]
     all_columns = descriptive_columns + totals_columns
     all_columns = [col for col in all_columns if col in region_df.columns]
     region_df = region_df[all_columns]
     region_df = region_df.rename(
         columns={col: col.replace("_Total", "") + " (GWh)" for col in region_df.columns if "Year" not in col})
     region_df = region_df.round(2)
+    region_df = region_df.rename(columns = {"All_Fuels (GWh)": "Total (GWh)"})
     return region_df.to_dict("records"), [{"name": i, "id": i} for i in region_df.columns]
 
 @app.callback(
@@ -307,6 +312,8 @@ def update_region_line(hoverData, yaxis_type):
         'paper_bgcolor': '#F2F8FF'
     })
     fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
+    fig.update_traces(mode='markers+lines')
+
     return fig
 
 @app.callback(
@@ -319,10 +326,12 @@ def update_cum_rate_of_change(hoverData):
     region_df = region_df.set_index("Year")
 
     year_change_df = region_df.pct_change().cumsum()
-    year_change_df = year_change_df.dropna()
     year_change_df *= 100
 
     year_change_df = melt_dataframe(year_change_df.reset_index())
+
+    year_change_df["Year"] = year_change_df["Year"].apply(
+        lambda x: datetime.datetime.strptime(str(x), "%Y"))
 
     fig = px.line(
         year_change_df,
@@ -330,11 +339,13 @@ def update_cum_rate_of_change(hoverData):
         y="GWh",
         color="Energy type",
         color_discrete_map=energy_source_colors,
+        range_x=[datetime.date(2006, 1, 1), datetime.date(2018, 1, 1)]
     )
     fig.update_layout({
         'plot_bgcolor': '#F2F8FF',
         'paper_bgcolor': '#F2F8FF'
     })
+    fig.update_traces(mode='markers+lines')
     fig.update_yaxes(title_text="Cumulative % change")
 
     return fig
