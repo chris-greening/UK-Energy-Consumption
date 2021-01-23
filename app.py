@@ -1,4 +1,5 @@
 import dash
+import dash_table
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
@@ -34,9 +35,11 @@ energy_source_colors = {
 markdown_msg = """
 [Source](https://www.gov.uk/government/statistics/total-final-energy-consumption-at-regional-and-local-authority-level-2005-to-2018)
 
+[GitHub](https://github.com/chris-greening/UK-Energy-Consumption)
+
 This data represents the total energy consumption at the regional level of the UK between 2005 and 2018.
 
-Hover over a region in the Total Energy Consumption plot to analyze that region's energy consumption as a time-series.
+Use the Year slider to slice a different year of data for the _Total Energy Consumption_ and _Percentage of energy source consumption plots_.
 """
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -79,32 +82,97 @@ app.layout = html.Div(
                    for year in dff['Year'].unique()},
             step=None
         ),
+        html.H6("Year", style={"text-align": "center"}),
         html.H1(id="region-info"),
         html.Div(
             children=[
+                dcc.Markdown(
+                    "Hover over a region in the _Total Energy Consumption_ plot above to analyze resource usage as a function of time"),
                 html.H3("Total consumption per year"),
                 dcc.Graph(
                     id="region-time-series-bar",
                     style={'height': '30vh'}
                 ),
             ],
-            className="bottom-plot",
+            className="middle-plot",
             style={"float": "left"}
         ),
         html.Div(
             children = [
                 html.H3("Energy source consumption per year"),
+                dcc.RadioItems(
+                    id='yaxis-type-line',
+                    options=[{'label': i, 'value': i}
+                             for i in ['Linear', 'Log']],
+                    value='Linear',
+                    labelStyle={'display': 'inline-block'}
+                ),
                 dcc.Graph(
                     id="region-time-series-scatter",
                     style={'height': '30vh'}
                 ),
             ],
+            className="middle-plot"
+        ),
+        html.Div(
+            children=[
+                html.H3("Energy resource usage by the numbers"),
+                html.Div(
+                    dash_table.DataTable(
+                        id="table",
+                        data=[],
+                        style_cell={'textAlign': 'center'},
+                        style_data_conditional=[
+                            {
+                                'if': {
+                                    'column_id': 'Year',
+                                },
+                                'fontWeight': 'bold',
+                                'backgroundColor': '#e8e8e8'
+                            },
+                        ]
+                    ),
+                    # style={"padding": "0% 25%"}
+                )
+            ],
+            className="bottom-plot",
+            style={"float": "left"}
+        ),
+        html.Div(
+            children = [
+                html.H3("Cumulative rate of change per energy source"),
+                html.Div(
+                    dcc.Graph(
+                        id="cum-rate-of-change",
+                        style={'height': '30vh'}
+                    ),
+                    # style={"padding": "0% 25%"}
+                ),
+            ],
             className="bottom-plot"
-        )
+        ),
     ],
     id="dash"
 )
 
+@app.callback(
+    [Output("table", "data"), Output("table", "columns")],
+    Input('total-energy-consumption-bar', 'hoverData')
+)
+def update_table(hoverData):
+    location = hoverData['points'][0]['x']
+    region_df = dff[dff["Name"] == location]
+    descriptive_columns = ["Year"]
+
+    totals_columns = [
+        col for col in region_df.columns if "Total" in col and col != "All_Fuels_Total"]
+    all_columns = descriptive_columns + totals_columns
+    all_columns = [col for col in all_columns if col in region_df.columns]
+    region_df = region_df[all_columns]
+    region_df = region_df.rename(
+        columns={col: col.replace("_Total", "") + " (GWh)" for col in region_df.columns if "Year" not in col})
+    region_df = region_df.round(2)
+    return region_df.to_dict("records"), [{"name": i, "id": i} for i in region_df.columns]
 
 @app.callback(
     Output('total-energy-consumption-percent', 'figure'),
@@ -121,7 +189,7 @@ def update_graph_percent(year_value):
     adjusted_df.iloc[:, 3:-4] = adjusted_df.iloc[:, 3:-
                                                 4].div(adjusted_df["All_Fuels_Total"], axis=0)
     long_adjusted_sum_df = pd.melt(adjusted_df, id_vars=["Year", "Name"], value_vars=[
-                                col for col in highest_region_df.columns if "Total" in col and col != "All_Fuels_Total" and "Sector" not in col])
+                                col for col in highest_region_df.columns if "Total" in col])
     long_adjusted_sum_df = long_adjusted_sum_df.rename(
         columns={"variable": "Energy type", "value": "%"})
     long_adjusted_sum_df["Energy type"] = long_adjusted_sum_df["Energy type"].str.replace(
@@ -218,9 +286,11 @@ def update_region_bar(hoverData):
 
 @app.callback(
     Output('region-time-series-scatter', 'figure'),
-    Input('total-energy-consumption-bar', 'hoverData')
+    [Input('total-energy-consumption-bar', 'hoverData'),
+     Input('yaxis-type-line', 'value'),
+    ]
 )
-def update_region_line(hoverData):
+def update_region_line(hoverData, yaxis_type):
     region_df = dff[dff['Name'] == hoverData['points'][0]['x']]
     long_region_df = melt_dataframe(region_df)
 
@@ -236,6 +306,37 @@ def update_region_line(hoverData):
         'plot_bgcolor': '#F2F8FF',
         'paper_bgcolor': '#F2F8FF'
     })
+    fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
+    return fig
+
+@app.callback(
+    Output('cum-rate-of-change', 'figure'),
+    Input('total-energy-consumption-bar', 'hoverData')
+)
+def update_cum_rate_of_change(hoverData):
+    region_df = dff[dff["Name"] == hoverData['points'][0]['x']]
+    region_df = region_df.drop(columns=["Name", "Unit"])
+    region_df = region_df.set_index("Year")
+
+    year_change_df = region_df.pct_change().cumsum()
+    year_change_df = year_change_df.dropna()
+    year_change_df *= 100
+
+    year_change_df = melt_dataframe(year_change_df.reset_index())
+
+    fig = px.line(
+        year_change_df,
+        x="Year",
+        y="GWh",
+        color="Energy type",
+        color_discrete_map=energy_source_colors,
+    )
+    fig.update_layout({
+        'plot_bgcolor': '#F2F8FF',
+        'paper_bgcolor': '#F2F8FF'
+    })
+    fig.update_yaxes(title_text="Cumulative % change")
+
     return fig
 
 if __name__ == '__main__':

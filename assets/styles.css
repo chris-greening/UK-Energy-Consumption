@@ -2,11 +2,26 @@
   padding: 0% 4%;
 }
 
+#region-info {
+    margin-top: 3%;
+}
+
 .top-plot {
   width: 49%;
   display: inline-block;
 }
 
+.middle-plot {
+  width: 49%;
+  display: inline-block;
+}
+
+.bottom-plot {
+  width: 49%;
+  display: inline-block;
+}
+
 html {
-  background-color: #F2F8FF
+  background-color: #F2F8FF;
+  margin-bottom: 10%;
 }
