@@ -17,7 +17,7 @@ DEBUG=True
 
 df = pd.read_csv("Subnational_total_final_energy_consumption_statistics.csv")
 dff = preprocess_dataframe(df)
-with open("mainland_uk2.geojson") as injson:
+with open("nuts_level_1.geojson") as injson:
     geojson = json.load(injson)
 energy_source_colors = {
     "Coal": '#525B76',
