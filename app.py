@@ -59,36 +59,46 @@ app.layout = html.Div(
                 html.Div(
                     children = [
                         html.H3(id="header-info"),
-                        dcc.Graph(
+                        dcc.Loading(
+                            dcc.Graph(
                                 id='total-energy-consumption-bar',
                                 hoverData={'points': [{'curveNumber': 2, 'pointNumber': 2, 'pointIndex': 2,
                                                     'x': 'Greater London', 'y': 36021.306273, 'label': 'Greater London', 'value': 36021.306273}]},
                                 className="plot"
                             ),
+                        )
                     ],
                     className="col-xl-6",
                 ),
                 html.Div(
                     children = [
                         html.H3(id="header-percentage-info"),
-                        dcc.Graph(
-                            id='total-energy-consumption-percent',
-                            className="plot"
-                        ),
+                        dcc.Loading(
+                            dcc.Graph(
+                                id='total-energy-consumption-percent',
+                                className="plot"
+                            ),
+                        )
                     ],
                     className="col-xl-6",
                 ),
             ],
             className="row"
         ),
-        dcc.Slider(
-            id='total-energy-consumption-year-slider',
-            min=dff['Year'].min(),
-            max=dff['Year'].max(),
-            value=dff['Year'].max(),
-            marks={str(year): str(year)
-                   for year in dff['Year'].unique()},
-            step=None,
+        html.Div(
+            html.Div(
+                dcc.Slider(
+                    id='total-energy-consumption-year-slider',
+                    min=dff['Year'].min(),
+                    max=dff['Year'].max(),
+                    value=dff['Year'].max(),
+                    marks={str(year): str(year)
+                        for year in dff['Year'].unique()},
+                    step=None,
+                ),
+                className="col-xl-12"
+            ),
+            className="row"
         ),
         html.H6("Year", style={"text-align": "center"}),
         html.H1(id="region-info"),
@@ -99,10 +109,12 @@ app.layout = html.Div(
                 html.Div(
                     children=[
                         html.H3("Total consumption per year"),
-                        dcc.Graph(
-                            id="region-time-series-bar",
-                            className="plot"
-                        ),
+                        dcc.Loading(
+                            dcc.Graph(
+                                id="region-time-series-bar",
+                                className="plot"
+                            ),
+                        )
                     ],
                     className="col-xl-6",
                 ),
@@ -116,10 +128,12 @@ app.layout = html.Div(
                             value='Linear',
                             labelStyle={'display': 'inline-block'}
                         ),
-                        dcc.Graph(
-                            id="region-time-series-scatter",
-                            className="plot"
-                        ),
+                        dcc.Loading(
+                            dcc.Graph(
+                                id="region-time-series-scatter",
+                                className="plot"
+                            ),
+                        )
                     ],
                     className="col-xl-6"
                 ),
@@ -131,9 +145,11 @@ app.layout = html.Div(
                 children = [
                     html.H3("Cumulative rate of change per energy source"),
                     html.Div(
-                        dcc.Graph(
-                            id="cum-rate-of-change",
-                        ),
+                        dcc.Loading(
+                            dcc.Graph(
+                                id="cum-rate-of-change",
+                            ),
+                        )
                     ),
                 ],
                 className="col-xl-12 plot"
