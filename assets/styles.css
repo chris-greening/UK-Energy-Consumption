@@ -1,27 +1,22 @@
 #dash {
-  padding: 0% 2%;
+  max-width: 1500px;
+  background-color: #F2F8FF;
 }
 
 #region-info {
-    margin-top: 3%;
+  margin-top: 3%;
 }
 
-.top-plot {
-  width: 49%;
-  display: inline-block;
-}
-
-.middle-plot {
-  width: 49%;
-  display: inline-block;
-}
-
-.bottom-plot {
-  width: 49%;
-  display: inline-block;
-}
-
-html {
+body {
   background-color: #F2F8FF;
   margin-bottom: 10%;
+}
+
+.plot {
+  height: 400px;
+}
+
+input[type="radio"] {
+  margin-left: 10px;
+  margin-right: 2px;
 }
