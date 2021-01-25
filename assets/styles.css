@@ -16,6 +16,7 @@ body {
   height: 400px;
 }
 
-.row {
-  margin-bottom: 3%;
+input[type="radio"] {
+  margin-left: 7px;
+  margin-right: 2px;
 }
