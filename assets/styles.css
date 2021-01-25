@@ -3,9 +3,9 @@
   background-color: #F2F8FF;
 }
 
-#region-info {
+/* #region-info {
   margin-top: 3%;
-}
+} */
 
 body {
   background-color: #F2F8FF;
@@ -16,7 +16,6 @@ body {
   height: 400px;
 }
 
-input[type="radio"] {
-  margin-left: 10px;
-  margin-right: 2px;
+.row {
+  margin-bottom: 3%;
 }
