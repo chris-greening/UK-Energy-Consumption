@@ -1,3 +1,5 @@
+import datetime
+
 import pandas as pd
 
 from regional_information import regional_information
@@ -80,3 +82,34 @@ def construct_regional_markdown(location):
 [Wiki/Source]({region["source"]})
 """
     return msg
+
+def calculate_rate_of_change_df(clickData, df):
+    region_df = df[df["Name"] ==
+                    click_location(clickData)]
+    region_df = region_df.drop(
+        columns=["Name", "Unit"])
+    region_df = region_df.set_index("Year")
+
+    year_change_df = region_df.pct_change().cumsum()
+    year_change_df *= 100
+
+    year_change_df = melt_dataframe(
+        year_change_df.reset_index())
+
+    year_change_df["Year"] = year_change_df["Year"].apply(
+        lambda x: datetime.datetime.strptime(str(x), "%Y"))
+    return year_change_df
+
+def calculate_energy_proportion_df(year, df):
+    year_df = df[df["Year"] == year]
+    total_consumption_df = year_df.groupby("Name").sum()
+    highest_region = total_consumption_df[total_consumption_df["All_Fuels_Total"] == total_consumption_df["All_Fuels_Total"].max()].index
+    highest_region_df = year_df[year_df["Name"] == highest_region[0]]
+    adjusted_df = year_df.copy()
+    adjusted_df.iloc[:, 3:-4] = adjusted_df.iloc[:, 3:-4].div(adjusted_df["All_Fuels_Total"], axis=0)
+    long_adjusted_sum_df = pd.melt(adjusted_df, id_vars=["Year", "Name"], value_vars=[col for col in highest_region_df.columns if "Total" in col])
+    long_adjusted_sum_df = long_adjusted_sum_df.rename(columns={"variable": "Energy type", "value": "%"})
+    long_adjusted_sum_df["Energy type"] = long_adjusted_sum_df["Energy type"].str.replace(
+        "_Total", "")
+    long_adjusted_sum_df["%"] = long_adjusted_sum_df["%"] * 100
+    return long_adjusted_sum_df

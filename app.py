@@ -11,9 +11,22 @@ import plotly
 import pandas as pd
 
 from data_processing import preprocess_dataframe, melt_dataframe, construct_regional_geojson, click_location, construct_regional_markdown
+import data_processing as dp
 import plotting
 
 DEBUG=True
+
+# @app.callback(
+#     Output('choropleth', 'figure'),
+#     Input('total-energy-consumption-year-slider', 'value')
+# )
+def update_choropleth():
+    fig = px.choropleth_mapbox(dff, geojson=geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm", animation_frame="Year",
+                               range_color=(0, 250000), color_continuous_scale=plotly.colors.diverging.Temps)
+    fig.update_layout(mapbox_style="carto-positron",
+                      mapbox_zoom=3.3, mapbox_center={"lat": 54.7, "lon": -3.43})
+    fig.update_layout(plotting.PLOT_COLORS)
+    return fig
 
 df = pd.read_csv("Subnational_total_final_energy_consumption_statistics.csv")
 dff = preprocess_dataframe(df)
@@ -45,7 +58,8 @@ app.layout = html.Div(children = [
         html.Div(
             dcc.Loading(
                 dcc.Graph(
-                    id="choropleth"
+                    id="choropleth",
+                    figure=update_choropleth()
                 )
             ),
             # className="col-xl-12",
@@ -61,24 +75,20 @@ app.layout = html.Div(children = [
                     html.Div(
                         children = [
                             html.H3(id="header-info"),
-                            dcc.Loading(
-                                dcc.Graph(
-                                    id='total-energy-consumption-bar',
-                                    clickData={'points': [{'x': 'London'}]},
-                                    className="plot"
-                                ),
-                            )
+                            dcc.Graph(
+                                id='total-energy-consumption-bar',
+                                clickData={'points': [{'x': 'London'}]},
+                                className="plot"
+                            ),
                         ],
                         className="col-xl-6",
                     ),
                     html.Div(
                         children = [
                             html.H3(id="header-percentage-info"),
-                            dcc.Loading(
-                                dcc.Graph(
-                                    id='total-energy-consumption-percent',
-                                    className="plot"
-                                ),
+                            dcc.Graph(
+                                id='total-energy-consumption-percent',
+                                className="plot"
                             )
                         ],
                         className="col-xl-6",
@@ -104,16 +114,8 @@ app.layout = html.Div(children = [
             html.H6("Year", style={"text-align": "center"}),
             html.H1(id="region-info"),
             dcc.Markdown(id="regional-markdown"),
-            html.Div(
-                html.Div(
-                    dcc.Loading(
-                        dcc.Graph(
-                            id="region-choropleth"
-                        )
-                    ),
-                    # className="col-xl-12",
-                ),
-                # className="row"
+            dcc.Graph(
+                id="region-choropleth"
             ),
             dcc.Markdown(
                 "Click a region in the _Total Energy Consumption_ plot above to analyze resource usage as a function of time"),
@@ -122,11 +124,9 @@ app.layout = html.Div(children = [
                     html.Div(
                         children=[
                             html.H3("Total consumption per year"),
-                            dcc.Loading(
-                                dcc.Graph(
-                                    id="region-time-series-bar",
-                                    className="plot"
-                                ),
+                            dcc.Graph(
+                                id="region-time-series-bar",
+                                className="plot"
                             )
                         ],
                         className="col-xl-6",
@@ -141,12 +141,10 @@ app.layout = html.Div(children = [
                                 value='Linear',
                                 labelStyle={'display': 'inline-block'}
                             ),
-                            dcc.Loading(
-                                dcc.Graph(
-                                    id="region-time-series-scatter",
-                                    className="plot"
-                                ),
-                            )
+                            dcc.Graph(
+                                id="region-time-series-scatter",
+                                className="plot"
+                            ),
                         ],
                         className="col-xl-6"
                     ),
@@ -157,12 +155,8 @@ app.layout = html.Div(children = [
                 html.Div(
                     children = [
                         html.H3("Cumulative rate of change per energy source"),
-                        html.Div(
-                            dcc.Loading(
-                                dcc.Graph(
-                                    id="cum-rate-of-change",
-                                ),
-                            )
+                        dcc.Graph(
+                            id="cum-rate-of-change",
                         ),
                     ],
                     className="col-xl-12 plot"
@@ -220,19 +214,6 @@ def update_region_choropleth(clickData):
     return fig
 
 @app.callback(
-    Output('choropleth', 'figure'),
-    Input('total-energy-consumption-year-slider', 'value')
-)
-def update_choropleth(year_value):
-    year_df = dff[dff["Year"] == year_value]
-    fig = px.choropleth_mapbox(year_df, geojson=geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm",
-                               range_color=(0, 316000), color_continuous_scale=plotly.colors.diverging.Temps)
-    fig.update_layout(mapbox_style="carto-positron",
-                  mapbox_zoom=3.7, mapbox_center={"lat": 54.7, "lon": -3.43})
-    fig.update_layout(plotting.PLOT_COLORS)
-    return fig
-
-@app.callback(
     [Output("table", "data"), Output("table", "columns")],
      Input('total-energy-consumption-bar', 'clickData')
 )
@@ -258,21 +239,7 @@ def update_table(clickData):
 )
 def update_graph_percent(year_value):
 
-    year_df = dff[dff["Year"] == year_value]
-    total_consumption_df = year_df.groupby("Name").sum()
-    highest_region = total_consumption_df[total_consumption_df["All_Fuels_Total"]
-                                      == total_consumption_df["All_Fuels_Total"].max()].index
-    highest_region_df = year_df[year_df["Name"] == highest_region[0]]
-    adjusted_df = year_df.copy()
-    adjusted_df.iloc[:, 3:-4] = adjusted_df.iloc[:, 3:-
-                                                4].div(adjusted_df["All_Fuels_Total"], axis=0)
-    long_adjusted_sum_df = pd.melt(adjusted_df, id_vars=["Year", "Name"], value_vars=[
-                                col for col in highest_region_df.columns if "Total" in col])
-    long_adjusted_sum_df = long_adjusted_sum_df.rename(
-        columns={"variable": "Energy type", "value": "%"})
-    long_adjusted_sum_df["Energy type"] = long_adjusted_sum_df["Energy type"].str.replace(
-        "_Total", "")
-    long_adjusted_sum_df["%"] = long_adjusted_sum_df["%"] * 100
+    long_adjusted_sum_df = dp.calculate_energy_proportion_df(year_value, dff)
 
     fig = px.bar(
         long_adjusted_sum_df,
@@ -337,7 +304,7 @@ def update_region_bar_header(clickData):
     Output('regional-markdown', 'children'),
     Input('total-energy-consumption-bar', 'clickData')
 )
-def update_region_bar_header(clickData):
+def update_regional_markdown(clickData):
     location = click_location(clickData)
     return construct_regional_markdown(location)
 
@@ -391,17 +358,7 @@ def update_region_line(clickData, yaxis_type):
     Input('total-energy-consumption-bar', 'clickData')
 )
 def update_cum_rate_of_change(clickData):
-    region_df = dff[dff["Name"] == click_location(clickData)]
-    region_df = region_df.drop(columns=["Name", "Unit"])
-    region_df = region_df.set_index("Year")
-
-    year_change_df = region_df.pct_change().cumsum()
-    year_change_df *= 100
-
-    year_change_df = melt_dataframe(year_change_df.reset_index())
-
-    year_change_df["Year"] = year_change_df["Year"].apply(
-        lambda x: datetime.datetime.strptime(str(x), "%Y"))
+    year_change_df = dp.calculate_rate_of_change_df(clickData, dff)
 
     fig = px.line(
         year_change_df,
