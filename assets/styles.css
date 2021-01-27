@@ -56,9 +56,16 @@ input[type="radio"] {
 }
 
 ._dash-loading {
-  background-image: url("loading.gif");
+  background-image: url("dash-loading.gif");
   background-size: 25vh;
   background-repeat: no-repeat;
   background-position: center;
   height: 100vh;
+}
+
+hr {
+  width: 75%;
+  margin-top: 5%;
+  margin-bottom: 5%;
+  border-color: black;
 }
