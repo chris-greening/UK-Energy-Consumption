@@ -10,7 +10,8 @@ import plotly.express as px
 import plotly
 import pandas as pd
 
-from data_processing import preprocess_dataframe, melt_dataframe
+from data_processing import preprocess_dataframe, melt_dataframe, construct_regional_geojson, click_location, construct_regional_markdown
+import plotting
 
 DEBUG=True
 
@@ -18,18 +19,7 @@ df = pd.read_csv("Subnational_total_final_energy_consumption_statistics.csv")
 dff = preprocess_dataframe(df)
 with open("nuts_level_1.geojson") as injson:
     geojson = json.load(injson)
-energy_source_colors = {
-    "Coal": '#525B76',
-    "Manufactured": '#F4A259',
-    "Petroleum": '#7A89C2',
-    "Gas": '#F9B5AC',
-    "Electricity": '#EE7674',
-    "Bioenergy": '#9DBF9E',
-}
-plot_colors = {
-    'plot_bgcolor': '#F2F8FF',
-    'paper_bgcolor': '#F2F8FF'
-}
+
 
 markdown_msg = """
 [Dataset](https://www.gov.uk/government/statistics/total-final-energy-consumption-at-regional-and-local-authority-level-2005-to-2018)
@@ -113,6 +103,7 @@ app.layout = html.Div(children = [
             ),
             html.H6("Year", style={"text-align": "center"}),
             html.H1(id="region-info"),
+            dcc.Markdown(id="regional-markdown"),
             html.Div(
                 html.Div(
                     dcc.Loading(
@@ -217,20 +208,15 @@ app.layout = html.Div(children = [
     Input('total-energy-consumption-bar', 'clickData')
 )
 def update_region_choropleth(clickData):
-    location = clickData['points'][0]['x']
+    location = click_location(clickData)
     region_df = dff[dff["Name"] == location]
-    region_geojson = [val for val in geojson["features"]
-                      if val["properties"]["nuts118nm"] == location]
-    region_geojson = {'type': 'FeatureCollection',
-                      'crs': {'type': 'name',
-                              'properties': {'name': 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
-                      'features': region_geojson}
+    region_geojson = construct_regional_geojson(location, geojson)
     max_energy = region_df["All_Fuels_Total"].max()
     fig = px.choropleth_mapbox(region_df, geojson=region_geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm", animation_frame="Year",
-                               range_color=(0, 316000), color_continuous_scale=plotly.colors.diverging.Temps)
+                               range_color=(0, max_energy), color_continuous_scale=plotly.colors.diverging.Temps)
     fig.update_layout(mapbox_style="carto-positron",
                       mapbox_zoom=3.7, mapbox_center={"lat": region_geojson["features"][0]["properties"]["lat"], "lon": region_geojson["features"][0]["properties"]["long"]})
-    fig.update_layout(plot_colors)
+    fig.update_layout(plotting.PLOT_COLORS)
     return fig
 
 @app.callback(
@@ -243,7 +229,7 @@ def update_choropleth(year_value):
                                range_color=(0, 316000), color_continuous_scale=plotly.colors.diverging.Temps)
     fig.update_layout(mapbox_style="carto-positron",
                   mapbox_zoom=3.7, mapbox_center={"lat": 54.7, "lon": -3.43})
-    fig.update_layout(plot_colors)
+    fig.update_layout(plotting.PLOT_COLORS)
     return fig
 
 @app.callback(
@@ -251,7 +237,7 @@ def update_choropleth(year_value):
      Input('total-energy-consumption-bar', 'clickData')
 )
 def update_table(clickData):
-    location = clickData['points'][0]['x']
+    location = click_location(clickData)
     region_df = dff[dff["Name"] == location]
     descriptive_columns = ["Year"]
 
@@ -295,11 +281,11 @@ def update_graph_percent(year_value):
         color="Energy type",
         animation_frame="Year",
         range_y=[0, 100],
-        color_discrete_map=energy_source_colors
+        color_discrete_map=plotting.ENERGY_SOURCE_COLORS
     )
     fig.update_yaxes(title_text="% Usage")
     fig.update_xaxes(title_text="")
-    fig.update_layout(plot_colors)
+    fig.update_layout(plotting.PLOT_COLORS)
     return fig
 
 @app.callback(
@@ -318,12 +304,12 @@ def update_graph(year_value):
         x="Name",
         y="GWh",
         color="Energy type",
-        color_discrete_map=energy_source_colors,
+        color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
         range_y=[min_y, max_y]
     )
     fig.update_xaxes(title_text="")
 
-    fig.update_layout(plot_colors)
+    fig.update_layout(plotting.PLOT_COLORS)
     return fig
 
 @app.callback(
@@ -345,14 +331,22 @@ def update__percentage_header(year_value):
     Input('total-energy-consumption-bar', 'clickData')
 )
 def update_region_bar_header(clickData):
-    return f"{clickData['points'][0]['x']}"
+    return f"{click_location(clickData)}"
+
+@app.callback(
+    Output('regional-markdown', 'children'),
+    Input('total-energy-consumption-bar', 'clickData')
+)
+def update_region_bar_header(clickData):
+    location = click_location(clickData)
+    return construct_regional_markdown(location)
 
 @app.callback(
     Output('region-time-series-bar', 'figure'),
     Input('total-energy-consumption-bar', 'clickData')
 )
 def update_region_bar(clickData):
-    region_df = dff[dff['Name'] == clickData['points'][0]['x']]
+    region_df = dff[dff['Name'] == click_location(clickData)]
     long_region_df = melt_dataframe(region_df)
 
     fig = px.bar(
@@ -360,9 +354,9 @@ def update_region_bar(clickData):
             x="Year",
             y="GWh",
             color="Energy type",
-            color_discrete_map=energy_source_colors,
+            color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
         )
-    fig.update_layout(plot_colors)
+    fig.update_layout(plotting.PLOT_COLORS)
     return fig
 
 
@@ -372,18 +366,19 @@ def update_region_bar(clickData):
     Input('yaxis-type-line', 'value')],
 )
 def update_region_line(clickData, yaxis_type):
-    region_df = dff[dff['Name'] == clickData['points'][0]['x']]
+    location = click_location(clickData)
+    region_df = dff[dff['Name'] == location]
     long_region_df = melt_dataframe(region_df)
 
-    title = f"Energy consumption time series for {clickData['points'][0]['x']}"
+    title = f"Energy consumption time series for {location}"
     fig = px.line(
         long_region_df,
         x="Year",
         y="GWh",
         color="Energy type",
-        color_discrete_map=energy_source_colors,
+        color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
     )
-    fig.update_layout(plot_colors)
+    fig.update_layout(plotting.PLOT_COLORS)
     fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
     fig.update_traces(mode='markers+lines')
     fig.update_xaxes(showspikes=True)
@@ -396,7 +391,7 @@ def update_region_line(clickData, yaxis_type):
     Input('total-energy-consumption-bar', 'clickData')
 )
 def update_cum_rate_of_change(clickData):
-    region_df = dff[dff["Name"] == clickData['points'][0]['x']]
+    region_df = dff[dff["Name"] == click_location(clickData)]
     region_df = region_df.drop(columns=["Name", "Unit"])
     region_df = region_df.set_index("Year")
 
@@ -413,10 +408,10 @@ def update_cum_rate_of_change(clickData):
         x="Year",
         y="GWh",
         color="Energy type",
-        color_discrete_map=energy_source_colors,
+        color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
         range_x=[datetime.date(2006, 1, 1), datetime.date(2018, 1, 1)]
     )
-    fig.update_layout(plot_colors)
+    fig.update_layout(plotting.PLOT_COLORS)
     fig.update_traces(mode='markers+lines')
     fig.update_yaxes(title_text="Cumulative % change")
     fig.update_xaxes(showspikes=True)
