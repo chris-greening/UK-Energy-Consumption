@@ -26,11 +26,15 @@ energy_source_colors = {
     "Electricity": '#EE7674',
     "Bioenergy": '#9DBF9E',
 }
+plot_colors = {
+    'plot_bgcolor': '#F2F8FF',
+    'paper_bgcolor': '#F2F8FF'
+}
 
 markdown_msg = """
 [Dataset](https://www.gov.uk/government/statistics/total-final-energy-consumption-at-regional-and-local-authority-level-2005-to-2018)
 
-[UK NUTS Level 1 (2018) Shapefile](https://geoportal.statistics.gov.uk/datasets/nuts-level-1-january-2018-super-generalised-clipped-boundaries-in-the-united-kingdom)
+[UK NUTS Level 1 (2018) GeoJSON](https://geoportal.statistics.gov.uk/datasets/nuts-level-1-january-2018-super-generalised-clipped-boundaries-in-the-united-kingdom)
 
 [GitHub](https://github.com/chris-greening/UK-Energy-Consumption)
 
@@ -109,6 +113,17 @@ app.layout = html.Div(children = [
             ),
             html.H6("Year", style={"text-align": "center"}),
             html.H1(id="region-info"),
+            html.Div(
+                html.Div(
+                    dcc.Loading(
+                        dcc.Graph(
+                            id="region-choropleth"
+                        )
+                    ),
+                    # className="col-xl-12",
+                ),
+                # className="row"
+            ),
             dcc.Markdown(
                 "Click a region in the _Total Energy Consumption_ plot above to analyze resource usage as a function of time"),
             html.Div(
@@ -196,6 +211,28 @@ app.layout = html.Div(children = [
     )
 ])
 
+
+@app.callback(
+    Output('region-choropleth', 'figure'),
+    Input('total-energy-consumption-bar', 'clickData')
+)
+def update_region_choropleth(clickData):
+    location = clickData['points'][0]['x']
+    region_df = dff[dff["Name"] == location]
+    region_geojson = [val for val in geojson["features"]
+                      if val["properties"]["nuts118nm"] == location]
+    region_geojson = {'type': 'FeatureCollection',
+                      'crs': {'type': 'name',
+                              'properties': {'name': 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
+                      'features': region_geojson}
+    max_energy = region_df["All_Fuels_Total"].max()
+    fig = px.choropleth_mapbox(region_df, geojson=region_geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm", animation_frame="Year",
+                               range_color=(0, 316000), color_continuous_scale=plotly.colors.diverging.Temps)
+    fig.update_layout(mapbox_style="carto-positron",
+                      mapbox_zoom=3.7, mapbox_center={"lat": region_geojson["features"][0]["properties"]["lat"], "lon": region_geojson["features"][0]["properties"]["long"]})
+    fig.update_layout(plot_colors)
+    return fig
+
 @app.callback(
     Output('choropleth', 'figure'),
     Input('total-energy-consumption-year-slider', 'value')
@@ -206,10 +243,7 @@ def update_choropleth(year_value):
                                range_color=(0, 316000), color_continuous_scale=plotly.colors.diverging.Temps)
     fig.update_layout(mapbox_style="carto-positron",
                   mapbox_zoom=3.7, mapbox_center={"lat": 54.7, "lon": -3.43})
-    fig.update_layout({
-        'plot_bgcolor': '#F2F8FF',
-        'paper_bgcolor': '#F2F8FF'
-    })
+    fig.update_layout(plot_colors)
     return fig
 
 @app.callback(
@@ -265,10 +299,7 @@ def update_graph_percent(year_value):
     )
     fig.update_yaxes(title_text="% Usage")
     fig.update_xaxes(title_text="")
-    fig.update_layout({
-        'plot_bgcolor': '#F2F8FF',
-        'paper_bgcolor': '#F2F8FF'
-    })
+    fig.update_layout(plot_colors)
     return fig
 
 @app.callback(
@@ -292,10 +323,7 @@ def update_graph(year_value):
     )
     fig.update_xaxes(title_text="")
 
-    fig.update_layout({
-        'plot_bgcolor': '#F2F8FF',
-        'paper_bgcolor': '#F2F8FF'
-    })
+    fig.update_layout(plot_colors)
     return fig
 
 @app.callback(
@@ -334,10 +362,7 @@ def update_region_bar(clickData):
             color="Energy type",
             color_discrete_map=energy_source_colors,
         )
-    fig.update_layout({
-        'plot_bgcolor': '#F2F8FF',
-        'paper_bgcolor': '#F2F8FF'
-    })
+    fig.update_layout(plot_colors)
     return fig
 
 
@@ -358,10 +383,7 @@ def update_region_line(clickData, yaxis_type):
         color="Energy type",
         color_discrete_map=energy_source_colors,
     )
-    fig.update_layout({
-        'plot_bgcolor': '#F2F8FF',
-        'paper_bgcolor': '#F2F8FF'
-    })
+    fig.update_layout(plot_colors)
     fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
     fig.update_traces(mode='markers+lines')
     fig.update_xaxes(showspikes=True)
@@ -394,10 +416,7 @@ def update_cum_rate_of_change(clickData):
         color_discrete_map=energy_source_colors,
         range_x=[datetime.date(2006, 1, 1), datetime.date(2018, 1, 1)]
     )
-    fig.update_layout({
-        'plot_bgcolor': '#F2F8FF',
-        'paper_bgcolor': '#F2F8FF'
-    })
+    fig.update_layout(plot_colors)
     fig.update_traces(mode='markers+lines')
     fig.update_yaxes(title_text="Cumulative % change")
     fig.update_xaxes(showspikes=True)
