@@ -1,6 +1,5 @@
 import datetime
 import json
-from functools import lru_cache
 
 import dash
 import dash_table
@@ -29,7 +28,9 @@ energy_source_colors = {
 }
 
 markdown_msg = """
-[Source](https://www.gov.uk/government/statistics/total-final-energy-consumption-at-regional-and-local-authority-level-2005-to-2018)
+[Dataset](https://www.gov.uk/government/statistics/total-final-energy-consumption-at-regional-and-local-authority-level-2005-to-2018)
+
+[UK NUTS Level 1 (2018) Shapefile](https://geoportal.statistics.gov.uk/datasets/nuts-level-1-january-2018-super-generalised-clipped-boundaries-in-the-united-kingdom)
 
 [GitHub](https://github.com/chris-greening/UK-Energy-Consumption)
 
@@ -199,7 +200,6 @@ app.layout = html.Div(children = [
     Output('choropleth', 'figure'),
     Input('total-energy-consumption-year-slider', 'value')
 )
-@lru_cache
 def update_choropleth(year_value):
     year_df = dff[dff["Year"] == year_value]
     fig = px.choropleth_mapbox(year_df, geojson=geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm",
@@ -236,7 +236,6 @@ def update_table(clickData):
     Output('total-energy-consumption-percent', 'figure'),
     Input('total-energy-consumption-year-slider', 'value')
 )
-@lru_cache
 def update_graph_percent(year_value):
 
     year_df = dff[dff["Year"] == year_value]
@@ -276,7 +275,6 @@ def update_graph_percent(year_value):
     Output('total-energy-consumption-bar', 'figure'),
     Input('total-energy-consumption-year-slider', 'value')
 )
-@lru_cache
 def update_graph(year_value):
     min_y = 0
     max_y = int(dff.groupby(["Year", "Name"]).sum().max()['All_Fuels_Total'])
