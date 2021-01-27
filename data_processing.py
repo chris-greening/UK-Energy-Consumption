@@ -83,9 +83,8 @@ def construct_regional_markdown(location):
 """
     return msg
 
-def calculate_rate_of_change_df(clickData, df):
-    region_df = df[df["Name"] ==
-                    click_location(clickData)]
+def calculate_rate_of_change_df(location, df):
+    region_df = df[df["Name"] == location]
     region_df = region_df.drop(
         columns=["Name", "Unit"])
     region_df = region_df.set_index("Year")
