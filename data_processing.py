@@ -21,12 +21,27 @@ def preprocess_dataframe(df: "pandas.DataFrame") -> "pandas.DataFrame":
     })
     dff["Name"] = dff["Name"].str.title()
 
+    dff = combine_regions(
+        dff,
+        ["Inner London", "Outer London", "Greater London"],
+        "London",
+        "GWh"
+    )
+
     # Reset the index
     dff = dff.reset_index(drop=True)
 
     # Sort by year then name
     dff = dff.sort_values(["Year", "Name"])
     return dff
+
+def combine_regions(df, subregions, region_name, unit):
+    subregion_df = df[df["Name"].isin(subregions)]
+    full_df = df[~df["Name"].isin(subregions)]
+    region_df = subregion_df.groupby(["Year"], as_index=False).sum()
+    region_df["Name"] = region_name
+    region_df["Unit"] = unit
+    return pd.concat([full_df, region_df])
 
 def melt_dataframe(df: "pandas.DataFrame") -> "pandas.DataFrame":
     descriptive_columns = ["Name", "Year"]
