@@ -130,7 +130,7 @@ app.layout = html.Div(children = [
                 dcc.Dropdown(
                     id='region-dropdown',
                     options=[{"label": val, "value": val} for val in dff["Name"].unique()],
-                    value='London'
+                    value='Scotland'
                 ),
                 style={"width": "200px", "margin-bottom": "2%"}
             ),
