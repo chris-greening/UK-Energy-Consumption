@@ -1,5 +1,7 @@
 import pandas as pd
 
+from regional_information import regional_information
+
 def preprocess_dataframe(df: "pandas.DataFrame") -> "pandas.DataFrame":
     dff = df[df["UNIT"] == "GWh"]
     dff = dff[dff["NAME"].str.isupper()]
@@ -57,3 +59,24 @@ def melt_dataframe(df: "pandas.DataFrame") -> "pandas.DataFrame":
                     "Coal", "Manufactured", "Petroleum", "Gas", "Electricity", "Bioenergy"])
     long_df = long_df.rename(columns={"variable": "Energy type", "value": "GWh"})
     return long_df
+
+def construct_regional_geojson(location, geojson):
+    region_geojson = [val for val in geojson["features"]
+                      if val["properties"]["nuts118nm"] == location]
+    region_geojson = {'type': 'FeatureCollection',
+                      'crs': {'type': 'name',
+                              'properties': {'name': 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
+                      'features': region_geojson}
+    return region_geojson
+
+def click_location(clickData):
+    return clickData['points'][0]['x']
+
+def construct_regional_markdown(location):
+    region = regional_information[location]
+    msg = f"""
+{region["description"]}
+
+[Wiki/Source]({region["source"]})
+"""
+    return msg
