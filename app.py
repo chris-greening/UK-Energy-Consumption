@@ -62,7 +62,7 @@ app.layout = html.Div(children = [
     ),
     html.Div(
         children = [
-            html.H1("UK Energy Consumption", style={"font-size": "6vh", "text-align": "center"}),
+            html.H1("United Kingdom Energy Consumption", style={"font-size": "6vh", "text-align": "center"}),
             dcc.Markdown(markdown_msg),
             html.Hr(),
             html.H1("The United Kingdom at a glance"),
@@ -122,20 +122,36 @@ app.layout = html.Div(children = [
                 className="row"
             ),
             html.H6("Year", style={"text-align": "center"}),
-            html.Hr(),
-            html.H1("The regional level at a glance"),
-            dcc.Markdown(
-                "Select the specific region you would like to visualize."),
             html.Div(
-                dcc.Dropdown(
-                    id='region-dropdown',
-                    options=[{"label": val, "value": val} for val in dff["Name"].unique()],
-                    value='Scotland'
-                ),
-                style={"width": "200px", "margin-bottom": "2%"}
+                children=[
+                    # html.Div(
+                    #     children=[
+                    #         html.H3(id="uk-circle-info"),
+                    #         dcc.Graph(
+                    #             id='total-energy-consumption-circle',
+                    #             className="plot"
+                    #         ),
+                    #     ],
+                    #     className="col-xl-6",
+                    # ),
+                    html.Div(
+                        children=[
+                            dcc.Graph(
+                                id='total-energy-consumption-percent-circle',
+                                className="plot"
+                            )
+                        ],
+                        className="col-xl-12",
+                        style={"display": "flex", "justify-content": "center"}
+                    ),
+                ],
+                className="row"
             ),
-            html.H3(id="region-info"),
-            dcc.Markdown(id="regional-markdown"),
+        ],
+        className="container-fluid dash",
+    ),
+    html.Div(
+        children = [
             dcc.Graph(
                 id="region-choropleth"
             ),
@@ -148,6 +164,25 @@ app.layout = html.Div(children = [
                        for year in dff['Year'].unique()},
                 step=None,
             ),
+        ]
+    ),
+    html.H1(id="region-info",
+            style={"font-size": "6vh", "text-align": "center"}),
+    html.Div(
+        children=[
+            dcc.Markdown(id="regional-markdown"),
+            dcc.Markdown(
+                "**Select a different region to visualize that regions data:**"),
+            html.Div(
+                dcc.Dropdown(
+                    id='region-dropdown',
+                    options=[{"label": val, "value": val}
+                             for val in dff["Name"].unique()],
+                    value='Wales'
+                ),
+                style={"width": "200px", "margin-bottom": "2%"}
+            ),
+            html.H1("The regional level at a glance"),
             html.Div(
                 children = [
                     html.Div(
@@ -219,12 +254,44 @@ app.layout = html.Div(children = [
                 style={"margin-top": "3%"}
             ),
         ],
-        id="dash",
-        className="container-fluid",
-        style={"max-width": "1500px",  "background-color": "#F2F8FF"}
+        className="container-fluid dash",
     )
 ])
 
+@app.callback(
+    Output('uk-circle-percentage-info', 'children'),
+    Input('total-energy-consumption-year-slider', 'value')
+)
+def update_circle_header(year_value):
+    return f"Aggregate resource usage in the UK ({year_value})"
+
+@app.callback(
+    Output("total-energy-consumption-circle", "figure"),
+    Input("total-energy-consumption-year-slider", "value")
+)
+def update_region_circle(year_value):
+    year_df = dff[dff["Year"] == year_value]
+    fig = px.pie(year_df, values="All_Fuels_Total", names="Name", hole=.5)
+    fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    return fig
+
+
+@app.callback(
+    Output("total-energy-consumption-percent-circle", "figure"),
+    Input("total-energy-consumption-year-slider", "value")
+)
+def update_percent_circle(year_value):
+    year_df = dff[dff["Year"] == year_value]
+    energy_df = year_df.groupby("Year").sum()
+    melted_energy_df = melt_dataframe(energy_df)
+    fig = px.pie(melted_energy_df, values="GWh", names="Energy type", color="Energy type",
+                 hole=.5, color_discrete_map=plotting.ENERGY_SOURCE_COLORS)
+    fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_layout(showlegend=False)
+
+    return fig
 
 @app.callback(
     Output('total-energy-usage', 'figure'),
