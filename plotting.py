@@ -18,5 +18,7 @@ CHOROPLETH_COLORS = {
     'paper_bgcolor': '#F2F8FF'
 }
 
+PLOT_HEIGHT="350px"
+
 places = ["United Kingdom", "Scotland", "Wales", "Northern Ireland", "East Midlands", "East Of England", "London", "North East", "North West", "South East", "South West", "West Midlands", "Yorkshire And The Humber"]
 REGION_COLORS = dict(zip(places, plotly.colors.qualitative.Prism))
