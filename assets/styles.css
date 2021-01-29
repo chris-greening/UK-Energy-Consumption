@@ -71,9 +71,10 @@ hr {
   border: 1px solid black;
   background-color: #fffffa;
   padding: 15px 10px 10px 15px;
+  height: 450px;
 }
 
-#total-energy-consumption-percent-circle {
+/* #total-energy-consumption-percent-circle {
   height: 417px;
 }
 
@@ -92,3 +93,7 @@ hr {
 #region-consumption-time-series {
   height: 444px;
 }
+
+.js-plotly-plot {
+  height: 400px;
+} */
