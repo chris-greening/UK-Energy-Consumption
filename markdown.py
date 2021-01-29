@@ -10,7 +10,7 @@ Sources:
 
 _Notice of Non-Affiliation and Disclaimer_: We are not affiliated, associated, authorized, endorsed by, or in any way officially connected with the UK government or any of its agencies/departments. The original datasets used by this dashboard are publicly available on the UK's [government website](https://www.gov.uk/) as provided by the [Department for Business, Energy, & Industrial Strategy](https://www.gov.uk/government/organisations/department-for-business-energy-and-industrial-strategy).
 
-Developer & Creator: [Chris Greening]((https://www.linkedin.com/in/chris-greening-dev/))
+Developed by [Chris Greening](https://www.linkedin.com/in/chris-greening-dev/)
 """
 
 NUTS_LEVEL_1 = """
