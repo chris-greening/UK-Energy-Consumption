@@ -13,24 +13,16 @@ import pandas as pd
 from data_processing import preprocess_dataframe, melt_dataframe, construct_regional_geojson, click_location, construct_regional_markdown
 import data_processing as dp
 import plotting
+import markdown
 
 DEBUG=True
 
-df = pd.read_csv("Subnational_total_final_energy_consumption_statistics.csv")
-dff = preprocess_dataframe(df)
-with open("nuts_level_1.geojson") as injson:
-    geojson = json.load(injson)
-with open("uk.geojson") as injson:
-    uk_geojson = json.load(injson)
-min_year, max_year = dff['Year'].min(), dff['Year'].max()
-year_marks = {str(year): str(year)
-              for year in dff['Year'].unique()}
 
 def update_choropleth():
     total_uk_df = dff.groupby("Year").sum().reset_index()
     total_uk_df["Name"] = "United Kingdom"
-    print(total_uk_df["All_Fuels_Total"])
-    fig = px.choropleth_mapbox(total_uk_df, geojson=uk_geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.union", animation_frame="Year", color_continuous_scale=plotly.colors.diverging.Temps, range_color=[1000000, 2000000])
+    fig = px.choropleth_mapbox(total_uk_df, geojson=uk_geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.union",
+                               animation_frame="Year", color_continuous_scale=plotly.colors.diverging.Temps, range_color=[1000000, 2000000])
     fig.update_layout(mapbox_style="carto-positron",
                       mapbox_zoom=3.3, mapbox_center={"lat": 54.7, "lon": -3.43})
     fig.update_layout(plotting.CHOROPLETH_COLORS)
@@ -77,20 +69,17 @@ def uk_total_per_energy_source():
     return fig
 
 
+df = pd.read_csv("Subnational_total_final_energy_consumption_statistics.csv")
+dff = preprocess_dataframe(df)
+with open("nuts_level_1.geojson") as injson:
+    geojson = json.load(injson)
+with open("uk.geojson") as injson:
+    uk_geojson = json.load(injson)
+min_year, max_year = dff['Year'].min(), dff['Year'].max()
+year_marks = {str(year): str(year)
+              for year in dff['Year'].unique()}
 
-markdown_msg = """
-Welcome to the interactive UK Energy Consumption dashboard! The purpose of this dashboard is to visualize and explore the UK's total final energy consumption from 2005 to 2018.
 
-As you scroll down the dashboard, the scope will narrow and you'll be able to explore the United Kingdom's energy data in increasingly specific regions.
-
-Sources:
-
-- [Total final energy consumption at regional and local authority level: 2005 to 2018](https://www.gov.uk/government/statistics/total-final-energy-consumption-at-regional-and-local-authority-level-2005-to-2018)
-- [UK NUTS Level 1 (2018) boundary data](https://geoportal.statistics.gov.uk/datasets/nuts-level-1-january-2018-super-generalised-clipped-boundaries-in-the-united-kingdom)
-- [GitHub](https://github.com/chris-greening/UK-Energy-Consumption)
-
-_Notice of Non-Affiliation and Disclaimer_: We are not affiliated, associated, authorized, endorsed by, or in any way officially connected with the UK government or any of its agencies/departments. The original datasets used by this dashboard are publicly available on the UK's [government website](https://www.gov.uk/) as provided by the [Department for Business, Energy, & Industrial Strategy](https://www.gov.uk/government/organisations/department-for-business-energy-and-industrial-strategy).
-"""
 
 external_stylesheets = ['https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css']
 
@@ -99,7 +88,12 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 if not DEBUG:
     server = app.server
 
+
+############################# LAYOUT #############################
+
 app.layout = html.Div(children = [
+
+    ############################# UNITED KINGDOM #############################
     html.Div(
         children=[
             html.Div(
@@ -113,7 +107,7 @@ app.layout = html.Div(children = [
     html.Div(
         children = [
             html.H1("United Kingdom Energy Consumption", style={"font-size": "6vh", "text-align": "center"}),
-            dcc.Markdown(markdown_msg),
+            dcc.Markdown(markdown.INTRO),
             html.Hr(),
             # html.H1("United Kingdom", style={"font-size": "6vh", "text-align": "center"}),
             html.Div(
@@ -199,6 +193,10 @@ app.layout = html.Div(children = [
         ],
         className="container-fluid dash",
     ),
+
+
+
+    ############################# NUTS LEVEL 1 REGIONS #############################
     html.Div(
         children=[
             html.Div(
@@ -266,6 +264,10 @@ app.layout = html.Div(children = [
         ],
         className="container-fluid dash",
     ),
+
+
+
+    ############################# REGION #############################
     html.Div(
         children = [
             dcc.Graph(
@@ -382,20 +384,9 @@ app.layout = html.Div(children = [
     )
 ])
 
+############################# CALLBACKS #############################
 
-@app.callback(
-    Output('all-regions-choropleth', 'figure'),
-    Input('choropleth-year-slider', 'value')
-)
-def update_all_regions_choropleth(year_value):
-    year_df = dff[dff["Year"] == year_value]
-    fig = px.choropleth_mapbox(year_df, geojson=geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm",
-                               range_color=(0, 250000), color_continuous_scale=plotly.colors.diverging.Temps)
-    fig.update_layout(mapbox_style="carto-positron",
-                      mapbox_zoom=3.3, mapbox_center={"lat": 54.7, "lon": -3.43})
-    fig.update_layout(plotting.CHOROPLETH_COLORS)
-    return fig
-
+############################# HEADERS #############################
 @app.callback(
     Output('uk-circle-percentage-info', 'children'),
     Input('total-energy-consumption-year-slider', 'value')
@@ -404,16 +395,44 @@ def update_circle_header(year_value):
     return f"Aggregate resource usage in the UK ({year_value})"
 
 @app.callback(
-    Output("total-energy-consumption-circle", "figure"),
-    Input("total-energy-consumption-year-slider", "value")
+    Output("total-energy-consumption-bar-header", "children"),
+    Input("uk-total-consumption-time-series", "hoverData")
 )
-def update_region_circle(year_value):
-    year_df = dff[dff["Year"] == year_value]
-    fig = px.pie(year_df, values="All_Fuels_Total", names="Name", hole=.5)
-    fig.update_layout(plotting.PLOT_COLORS)
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    return fig
+def update_consumption_bar_plot(hoverData):
+    year_value = hoverData['points'][0]['x']
+    return f"Totel energy consumption (GWh) per energy source ({year_value})"
 
+@app.callback(
+    Output("total-energy-consumption-circle-header", "children"),
+    Input("total-energy-usage", "hoverData")
+)
+def update_percent_circle_header(hoverData):
+    year_value = hoverData['points'][0]['x']
+    return f"Totel percentage (%) per energy source ({year_value})"
+
+@app.callback(
+    Output('header-info', 'children'),
+    Input('total-energy-consumption-year-slider', 'value')
+)
+def update_header(year_value):
+    return f"Total energy consumption per region ({year_value})"
+
+
+@app.callback(
+    Output('header-percentage-info', 'children'),
+    Input('total-energy-consumption-year-slider', 'value')
+)
+def update_percentage_header(year_value):
+    return f"Percentage of energy consumption per region ({year_value})"
+
+@app.callback(
+    Output('region-info', 'children'),
+    Input('region-dropdown', 'value')
+)
+def update_region_bar_header(location):
+    return f"{location}"
+
+############################# BAR PLOTS #############################
 @app.callback(
     Output("total-energy-consumption-bar-plot", "figure"),
     Input("uk-total-consumption-time-series", "hoverData")
@@ -434,99 +453,6 @@ def total_uk_energy_bar_plot(hoverData):
     fig.update_layout(plotting.PLOT_COLORS)
 
     return fig
-
-@app.callback(
-    Output("total-energy-consumption-bar-header", "children"),
-    Input("uk-total-consumption-time-series", "hoverData")
-)
-def update_consumption_bar_plot(hoverData):
-    year_value = hoverData['points'][0]['x']
-    return f"Totel energy consumption (GWh) per energy source ({year_value})"
-
-@app.callback(
-    Output("total-energy-consumption-circle-header", "children"),
-    Input("total-energy-usage", "hoverData")
-)
-def update_percent_circle_header(hoverData):
-    year_value = hoverData['points'][0]['x']
-    return f"Totel percentage (%) per energy source ({year_value})"
-
-@app.callback(
-    Output("total-energy-consumption-percent-circle", "figure"),
-    Input("total-energy-usage", "hoverData")
-)
-def update_percent_circle(hoverData):
-    year_value = hoverData['points'][0]['x']
-    year_df = dff[dff["Year"] == year_value]
-    energy_df = year_df.groupby("Year").sum()
-    melted_energy_df = melt_dataframe(energy_df)
-    fig = px.pie(melted_energy_df, values="GWh", names="Energy type", color="Energy type",
-                 hole=.5, color_discrete_map=plotting.ENERGY_SOURCE_COLORS)
-    fig.update_layout(plotting.PLOT_COLORS)
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    fig.update_layout(showlegend=False)
-
-    return fig
-
-@app.callback(
-    Output('total-energy-usage', 'figure'),
-    Input('total-type-line', 'value'),
-)
-def total_uk_energy_time_series(yaxis_type):
-    year_df = dff.groupby("Year").sum()
-    long_total_df = melt_dataframe(year_df.reset_index())
-    fig = px.line(
-        long_total_df,
-        x="Year",
-        y="GWh",
-        color="Energy type",
-        color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
-        log_y=True,
-    )
-    fig.update_layout(plotting.PLOT_COLORS)
-    # fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
-    fig.update_traces(mode='markers+lines')
-    fig.update_xaxes(showspikes=True)
-    fig.update_yaxes(showspikes=True)
-    fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
-
-    return fig
-
-@app.callback(
-    Output('region-choropleth', 'figure'),
-    [Input('region-dropdown', 'value'),
-     Input("region-choropleth-year-slider", "value")]
-)
-def update_region_choropleth(location, year_value):
-    region_df = dff[dff["Name"] == location]
-    year_df = region_df[region_df["Year"] == year_value]
-    region_geojson = construct_regional_geojson(location, geojson)
-    max_energy = region_df["All_Fuels_Total"].max()
-    fig = px.choropleth_mapbox(year_df, geojson=region_geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm",
-                               range_color=(0, max_energy), color_continuous_scale=plotly.colors.diverging.Temps)
-    fig.update_layout(mapbox_style="carto-positron",
-                      mapbox_zoom=3.7, mapbox_center={"lat": region_geojson["features"][0]["properties"]["lat"], "lon": region_geojson["features"][0]["properties"]["long"]})
-    fig.update_layout(plotting.CHOROPLETH_COLORS)
-    return fig
-
-@app.callback(
-    [Output("table", "data"), Output("table", "columns")],
-     Input('region-dropdown', 'value')
-)
-def update_table(location):
-    region_df = dff[dff["Name"] == location]
-    descriptive_columns = ["Year"]
-
-    totals_columns = [
-        col for col in region_df.columns if "Total" in col]
-    all_columns = descriptive_columns + totals_columns
-    all_columns = [col for col in all_columns if col in region_df.columns]
-    region_df = region_df[all_columns]
-    region_df = region_df.rename(
-        columns={col: col.replace("_Total", "") + " (GWh)" for col in region_df.columns if "Year" not in col})
-    region_df = region_df.round(2)
-    region_df = region_df.rename(columns = {"All_Fuels (GWh)": "Total (GWh)"})
-    return region_df.to_dict("records"), [{"name": i, "id": i} for i in region_df.columns]
 
 @app.callback(
     Output('total-energy-consumption-percent', 'figure'),
@@ -575,34 +501,6 @@ def update_graph(year_value):
     return fig
 
 @app.callback(
-    Output('header-info', 'children'),
-    Input('total-energy-consumption-year-slider', 'value')
-)
-def update_header(year_value):
-    return f"Total energy consumption per region ({year_value})"
-
-@app.callback(
-    Output('header-percentage-info', 'children'),
-    Input('total-energy-consumption-year-slider', 'value')
-)
-def update_percentage_header(year_value):
-    return f"Percentage of energy consumption per region ({year_value})"
-
-@app.callback(
-    Output('region-info', 'children'),
-    Input('region-dropdown', 'value')
-)
-def update_region_bar_header(location):
-    return f"{location}"
-
-@app.callback(
-    Output('regional-markdown', 'children'),
-    Input('region-dropdown', 'value')
-)
-def update_regional_markdown(location):
-    return construct_regional_markdown(location)
-
-@app.callback(
     Output('region-time-series-bar', 'figure'),
     Input('region-dropdown', 'value')
 )
@@ -611,20 +509,44 @@ def update_region_bar(location):
     long_region_df = melt_dataframe(region_df)
 
     fig = px.bar(
-            long_region_df,
-            x="Year",
-            y="GWh",
-            color="Energy type",
-            color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
-        )
+        long_region_df,
+        x="Year",
+        y="GWh",
+        color="Energy type",
+        color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
+    )
     fig.update_layout(plotting.PLOT_COLORS)
     return fig
 
+############################# LINE PLOTS #############################
+@app.callback(
+    Output('total-energy-usage', 'figure'),
+    Input('total-type-line', 'value'),
+)
+def total_uk_energy_time_series(yaxis_type):
+    year_df = dff.groupby("Year").sum()
+    long_total_df = melt_dataframe(year_df.reset_index())
+    fig = px.line(
+        long_total_df,
+        x="Year",
+        y="GWh",
+        color="Energy type",
+        color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
+        log_y=True,
+    )
+    fig.update_layout(plotting.PLOT_COLORS)
+    # fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
+    fig.update_traces(mode='markers+lines')
+    fig.update_xaxes(showspikes=True)
+    fig.update_yaxes(showspikes=True)
+    fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
+
+    return fig
 
 @app.callback(
     Output('region-time-series-scatter', 'figure'),
     [Input('region-dropdown', 'value'),
-    Input('yaxis-type-line', 'value')],
+     Input('yaxis-type-line', 'value')],
 )
 def update_region_line(location, yaxis_type):
     region_df = dff[dff['Name'] == location]
@@ -668,6 +590,98 @@ def update_cum_rate_of_change(location):
     fig.update_yaxes(showspikes=True)
 
     return fig
+
+############################# CHOROPLETHS #############################
+@app.callback(
+    Output('all-regions-choropleth', 'figure'),
+    Input('choropleth-year-slider', 'value')
+)
+def update_all_regions_choropleth(year_value):
+    """Returns choropleth figure showing all regions in the UK"""
+    year_df = dff[dff["Year"] == year_value]
+    fig = px.choropleth_mapbox(year_df, geojson=geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm",
+                               range_color=(0, 250000), color_continuous_scale=plotly.colors.diverging.Temps)
+    fig.update_layout(mapbox_style="carto-positron",
+                      mapbox_zoom=3.3, mapbox_center={"lat": 54.7, "lon": -3.43})
+    fig.update_layout(plotting.CHOROPLETH_COLORS)
+    return fig
+
+@app.callback(
+    Output('region-choropleth', 'figure'),
+    [Input('region-dropdown', 'value'),
+     Input("region-choropleth-year-slider", "value")]
+)
+def update_region_choropleth(location, year_value):
+    """ Returns choropleth figure showing specific region in the UK"""
+    region_df = dff[dff["Name"] == location]
+    year_df = region_df[region_df["Year"] == year_value]
+    region_geojson = construct_regional_geojson(location, geojson)
+    max_energy = region_df["All_Fuels_Total"].max()
+    fig = px.choropleth_mapbox(year_df, geojson=region_geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm",
+                               range_color=(0, max_energy), color_continuous_scale=plotly.colors.diverging.Temps)
+    fig.update_layout(mapbox_style="carto-positron",
+                      mapbox_zoom=3.7, mapbox_center={"lat": region_geojson["features"][0]["properties"]["lat"], "lon": region_geojson["features"][0]["properties"]["long"]})
+    fig.update_layout(plotting.CHOROPLETH_COLORS)
+    return fig
+
+############################# PIE CHARTS #############################
+@app.callback(
+    Output("total-energy-consumption-circle", "figure"),
+    Input("total-energy-consumption-year-slider", "value")
+)
+def update_region_circle(year_value):
+    year_df = dff[dff["Year"] == year_value]
+    fig = px.pie(year_df, values="All_Fuels_Total", names="Name", hole=.5)
+    fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    return fig
+
+@app.callback(
+    Output("total-energy-consumption-percent-circle", "figure"),
+    Input("total-energy-usage", "hoverData")
+)
+def update_percent_circle(hoverData):
+    year_value = hoverData['points'][0]['x']
+    year_df = dff[dff["Year"] == year_value]
+    energy_df = year_df.groupby("Year").sum()
+    melted_energy_df = melt_dataframe(energy_df)
+    fig = px.pie(melted_energy_df, values="GWh", names="Energy type", color="Energy type",
+                 hole=.5, color_discrete_map=plotting.ENERGY_SOURCE_COLORS)
+    fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_layout(showlegend=False)
+
+    return fig
+
+############################# MARKDOWN #############################
+
+@app.callback(
+    Output('regional-markdown', 'children'),
+    Input('region-dropdown', 'value')
+)
+def update_regional_markdown(location):
+    return construct_regional_markdown(location)
+
+
+@app.callback(
+    [Output("table", "data"), Output("table", "columns")],
+     Input('region-dropdown', 'value')
+)
+def update_table(location):
+    region_df = dff[dff["Name"] == location]
+    descriptive_columns = ["Year"]
+
+    totals_columns = [
+        col for col in region_df.columns if "Total" in col]
+    all_columns = descriptive_columns + totals_columns
+    all_columns = [col for col in all_columns if col in region_df.columns]
+    region_df = region_df[all_columns]
+    region_df = region_df.rename(
+        columns={col: col.replace("_Total", "") + " (GWh)" for col in region_df.columns if "Year" not in col})
+    region_df = region_df.round(2)
+    region_df = region_df.rename(columns = {"All_Fuels (GWh)": "Total (GWh)"})
+    return region_df.to_dict("records"), [{"name": i, "id": i} for i in region_df.columns]
+
 
 if __name__ == '__main__':
     app.run_server(debug=DEBUG)
