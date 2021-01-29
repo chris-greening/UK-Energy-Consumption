@@ -20,10 +20,68 @@ df = pd.read_csv("Subnational_total_final_energy_consumption_statistics.csv")
 dff = preprocess_dataframe(df)
 with open("nuts_level_1.geojson") as injson:
     geojson = json.load(injson)
+with open("uk.geojson") as injson:
+    uk_geojson = json.load(injson)
+min_year, max_year = dff['Year'].min(), dff['Year'].max()
+year_marks = {str(year): str(year)
+              for year in dff['Year'].unique()}
+
+def update_choropleth():
+    total_uk_df = dff.groupby("Year").sum().reset_index()
+    total_uk_df["Name"] = "United Kingdom"
+    print(total_uk_df["All_Fuels_Total"])
+    fig = px.choropleth_mapbox(total_uk_df, geojson=uk_geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.union", animation_frame="Year", color_continuous_scale=plotly.colors.diverging.Temps, range_color=[1000000, 2000000])
+    fig.update_layout(mapbox_style="carto-positron",
+                      mapbox_zoom=3.3, mapbox_center={"lat": 54.7, "lon": -3.43})
+    fig.update_layout(plotting.CHOROPLETH_COLORS)
+    return fig
+
+def uk_total_time_series():
+    total_uk_df = dff.groupby("Year").sum().reset_index()
+    fig = px.line(
+        total_uk_df,
+        x="Year",
+        y="All_Fuels_Total",
+        range_y=[1000000, 2000000],
+        color_discrete_sequence=[plotting.REGION_COLORS["United Kingdom"]],
+    )
+    fig.update_layout(plotting.PLOT_COLORS)
+    # fig.update_yaxes(type='linear' if yaxis_type == 'Linear' else 'log')
+    fig.update_traces(mode='markers+lines')
+    fig.update_xaxes(showspikes=True)
+    fig.update_yaxes(showspikes=True)
+    fig.update_layout(hovermode="x")
+
+    return fig
+
+def uk_total_per_energy_source():
+    min_y = 0
+    total_uk_df = dff.groupby("Year").sum().reset_index()
+    max_y = int(total_uk_df['All_Fuels_Total'].max())
+    max_y = max_y + max_y*.05
+
+    long_year_df = melt_dataframe(total_uk_df)
+    fig = px.bar(
+        long_year_df,
+        x="Year",
+        y="GWh",
+        color="Energy type",
+        color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
+        range_y=[min_y, max_y]
+    )
+    fig.update_xaxes(title_text="")
+
+    fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_layout(hovermode="x")
+
+    return fig
+
 
 
 markdown_msg = """
 Welcome to the interactive UK Energy Consumption dashboard! The purpose of this dashboard is to visualize and explore the UK's total final energy consumption from 2005 to 2018.
+
+As you scroll down the dashboard, the scope will narrow and you'll be able to explore the United Kingdom's energy data in increasingly specific regions.
 
 Sources:
 
@@ -47,16 +105,8 @@ app.layout = html.Div(children = [
             html.Div(
                 dcc.Graph(
                     id="choropleth",
+                    figure=update_choropleth()
                 )
-            ),
-            dcc.Slider(
-                id='choropleth-year-slider',
-                min=dff['Year'].min(),
-                max=dff['Year'].max(),
-                value=dff['Year'].min(),
-                marks={str(year): str(year)
-                       for year in dff['Year'].unique()},
-                step=None,
             ),
         ]
     ),
@@ -65,42 +115,134 @@ app.layout = html.Div(children = [
             html.H1("United Kingdom Energy Consumption", style={"font-size": "6vh", "text-align": "center"}),
             dcc.Markdown(markdown_msg),
             html.Hr(),
-            html.H1("The United Kingdom at a glance"),
-            html.H3("Total consumption per energy source in the UK (GWh)"),
+            # html.H1("United Kingdom", style={"font-size": "6vh", "text-align": "center"}),
             html.Div(
                 children=[
-                    dcc.RadioItems(
-                        id='total-type-line',
-                        options=[{'label': i, 'value': i}
-                                for i in ['Linear', 'Log']],
-                        value='Linear',
-                        labelStyle={'display': 'inline-block'},
+                    html.Div(
+                        html.Div(
+                            children = [
+                                html.H3("Total energy consumption (GWh)"),
+                                dcc.Markdown("Hover over a data point to analyze breakdown by energy source"),
+                                dcc.Graph(
+                                    id="uk-total-consumption-time-series",
+                                    figure=uk_total_time_series(),
+                                    hoverData={"points":[{"x": 2005}]}
+                                )
+                            ],
+                            className="plot"
+                        ),
+                        className="col-xl-8"
                     ),
-                    dcc.Graph(
-                        id="total-energy-usage"
+                    html.Div(
+                        html.Div(
+                            children=[
+                                html.H3(id="total-energy-consumption-bar-header"),
+                                dcc.Graph(
+                                    id='total-energy-consumption-bar-plot',
+                                )
+                            ],
+                            className="plot"
+                        ),
+                        className="col-xl-4",
                     ),
-                ]
+                ],
+                className="row"
             ),
+            html.Div(
+                children=[
+                    html.Div(
+                        html.Div(
+                            children=[
+                                html.H3(
+                                    "Total consumption per energy source in the UK (GWh)"),
+                                dcc.RadioItems(
+                                    id='total-type-line',
+                                    options=[{'label': i, 'value': i}
+                                             for i in ['Linear', 'Log']],
+                                    value='Linear',
+                                    labelStyle={'display': 'inline-block'},
+                                ),
+                                dcc.Graph(
+                                    id="total-energy-usage",
+                                    hoverData={"points": [{"x": 2005}]}
+                                ),
+                            ],
+                            className="plot"
+                        ),
+                        className="col-xl-8 order-xl-12"
+                    ),
+                    html.Div(
+                        html.Div(
+                            children=[
+                                html.H3(
+                                    id="total-energy-consumption-circle-header"),
+                                dcc.Graph(
+                                    id='total-energy-consumption-percent-circle',
+                                )
+                            ],
+                            className="plot"
+                        ),
+                        className="col-xl-4 order-xl-1",
+                    ),
+                ],
+                className="row"
+            ),
+            # html.Div(
+            #     children=[
+            #         html.H3("Total energy consumption per energy source (GWh)"),
+            #         dcc.Graph(
+            #             figure=uk_total_per_energy_source()
+            #         )
+            #     ],
+            #     className="plot"
+            # ),
+        ],
+        className="container-fluid dash",
+    ),
+    html.Div(
+        children=[
+            html.Div(
+                dcc.Graph(
+                    id="all-regions-choropleth",
+                )
+            ),
+            dcc.Slider(
+                id='choropleth-year-slider',
+                min=min_year,
+                max=max_year,
+                value=min_year,
+                marks=year_marks,
+                step=None,
+            ),
+        ]
+    ),
+    html.Div(
+        children=[
+            html.H1("NUTS Level 1 Statistical Regions", style={"font-size": "6vh", "text-align": "center"}),
             html.Div(
                 children = [
                     html.Div(
-                        children = [
-                            html.H3(id="header-info"),
-                            dcc.Graph(
-                                id='total-energy-consumption-bar',
-                                className="plot"
-                            ),
-                        ],
+                        html.Div(
+                            children=[
+                                html.H3(id="header-info"),
+                                dcc.Graph(
+                                    id='total-energy-consumption-bar',
+                                ),
+                            ],
+                            className="plot"
+                        ),
                         className="col-xl-6",
                     ),
                     html.Div(
-                        children = [
-                            html.H3(id="header-percentage-info"),
-                            dcc.Graph(
-                                id='total-energy-consumption-percent',
-                                className="plot"
-                            )
-                        ],
+                        html.Div(
+                            children = [
+                                html.H3(id="header-percentage-info"),
+                                dcc.Graph(
+                                    id='total-energy-consumption-percent',
+                                ),
+                            ],
+                            className="plot"
+                        ),
                         className="col-xl-6",
                     ),
                 ],
@@ -119,32 +261,6 @@ app.layout = html.Div(children = [
                     ),
                     className="col-xl-12"
                 ),
-                className="row"
-            ),
-            html.H6("Year", style={"text-align": "center"}),
-            html.Div(
-                children=[
-                    # html.Div(
-                    #     children=[
-                    #         html.H3(id="uk-circle-info"),
-                    #         dcc.Graph(
-                    #             id='total-energy-consumption-circle',
-                    #             className="plot"
-                    #         ),
-                    #     ],
-                    #     className="col-xl-6",
-                    # ),
-                    html.Div(
-                        children=[
-                            dcc.Graph(
-                                id='total-energy-consumption-percent-circle',
-                                className="plot"
-                            )
-                        ],
-                        className="col-xl-12",
-                        style={"display": "flex", "justify-content": "center"}
-                    ),
-                ],
                 className="row"
             ),
         ],
@@ -182,34 +298,39 @@ app.layout = html.Div(children = [
                 ),
                 style={"width": "200px", "margin-bottom": "2%"}
             ),
+            html.Hr(),
             html.H1("The regional level at a glance"),
             html.Div(
                 children = [
                     html.Div(
-                        children=[
-                            html.H3("Total consumption per year"),
-                            dcc.Graph(
-                                id="region-time-series-bar",
-                                className="plot"
-                            )
-                        ],
+                        html.Div(
+                            children=[
+                                html.H3("Total consumption per year"),
+                                dcc.Graph(
+                                    id="region-time-series-bar",
+                                )
+                            ],
+                            className="plot"
+                        ),
                         className="col-xl-6",
                     ),
                     html.Div(
-                        children = [
-                            html.H3("Energy source consumption per year"),
-                            dcc.RadioItems(
-                                id='yaxis-type-line',
-                                options=[{'label': i, 'value': i}
-                                        for i in ['Linear', 'Log']],
-                                value='Linear',
-                                labelStyle={'display': 'inline-block'}
-                            ),
-                            dcc.Graph(
-                                id="region-time-series-scatter",
-                                className="plot"
-                            ),
-                        ],
+                        html.Div(
+                            children = [
+                                html.H3("Energy source consumption per year"),
+                                dcc.RadioItems(
+                                    id='yaxis-type-line',
+                                    options=[{'label': i, 'value': i}
+                                            for i in ['Linear', 'Log']],
+                                    value='Linear',
+                                    labelStyle={'display': 'inline-block'}
+                                ),
+                                dcc.Graph(
+                                    id="region-time-series-scatter",
+                                ),
+                            ],
+                            className="plot"
+                        ),
                         className="col-xl-6"
                     ),
                 ],
@@ -217,13 +338,16 @@ app.layout = html.Div(children = [
             ),
             html.Div(
                 html.Div(
-                    children = [
-                        html.H3("Cumulative rate of change per energy source"),
-                        dcc.Graph(
-                            id="cum-rate-of-change",
-                        ),
-                    ],
-                    className="col-xl-12 plot"
+                    html.Div(
+                        children = [
+                            html.H3("Cumulative rate of change per energy source"),
+                            dcc.Graph(
+                                id="cum-rate-of-change",
+                            ),
+                        ],
+                        className="plot"
+                    ),
+                    className="col-xl-12"
                 ),
                 className="row"
             ),
@@ -258,6 +382,20 @@ app.layout = html.Div(children = [
     )
 ])
 
+
+@app.callback(
+    Output('all-regions-choropleth', 'figure'),
+    Input('choropleth-year-slider', 'value')
+)
+def update_all_regions_choropleth(year_value):
+    year_df = dff[dff["Year"] == year_value]
+    fig = px.choropleth_mapbox(year_df, geojson=geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm",
+                               range_color=(0, 250000), color_continuous_scale=plotly.colors.diverging.Temps)
+    fig.update_layout(mapbox_style="carto-positron",
+                      mapbox_zoom=3.3, mapbox_center={"lat": 54.7, "lon": -3.43})
+    fig.update_layout(plotting.CHOROPLETH_COLORS)
+    return fig
+
 @app.callback(
     Output('uk-circle-percentage-info', 'children'),
     Input('total-energy-consumption-year-slider', 'value')
@@ -276,12 +414,49 @@ def update_region_circle(year_value):
     fig.update_traces(textposition='inside', textinfo='percent+label')
     return fig
 
+@app.callback(
+    Output("total-energy-consumption-bar-plot", "figure"),
+    Input("uk-total-consumption-time-series", "hoverData")
+)
+def total_uk_energy_bar_plot(hoverData):
+    year_value = hoverData['points'][0]['x']
+    year_df = dff[dff["Year"] == year_value]
+    year_df = year_df.groupby("Year").sum()
+    long_total_df = melt_dataframe(year_df)
+    fig = px.bar(
+        long_total_df,
+        x="Energy type",
+        y="GWh",
+        color="Energy type",
+        color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
+        range_y=[0, 750000]
+    )
+    fig.update_layout(plotting.PLOT_COLORS)
+
+    return fig
+
+@app.callback(
+    Output("total-energy-consumption-bar-header", "children"),
+    Input("uk-total-consumption-time-series", "hoverData")
+)
+def update_consumption_bar_plot(hoverData):
+    year_value = hoverData['points'][0]['x']
+    return f"Totel energy consumption (GWh) per energy source ({year_value})"
+
+@app.callback(
+    Output("total-energy-consumption-circle-header", "children"),
+    Input("total-energy-usage", "hoverData")
+)
+def update_percent_circle_header(hoverData):
+    year_value = hoverData['points'][0]['x']
+    return f"Totel percentage (%) per energy source ({year_value})"
 
 @app.callback(
     Output("total-energy-consumption-percent-circle", "figure"),
-    Input("total-energy-consumption-year-slider", "value")
+    Input("total-energy-usage", "hoverData")
 )
-def update_percent_circle(year_value):
+def update_percent_circle(hoverData):
+    year_value = hoverData['points'][0]['x']
     year_df = dff[dff["Year"] == year_value]
     energy_df = year_df.groupby("Year").sum()
     melted_energy_df = melt_dataframe(energy_df)
@@ -318,19 +493,6 @@ def total_uk_energy_time_series(yaxis_type):
     return fig
 
 @app.callback(
-    Output('choropleth', 'figure'),
-    Input('choropleth-year-slider', 'value')
-)
-def update_choropleth(year_value):
-    year_df = dff[dff["Year"] == year_value]
-    fig = px.choropleth_mapbox(year_df, geojson=geojson, locations="Name", color="All_Fuels_Total", featureidkey="properties.nuts118nm",
-                               range_color=(0, 250000), color_continuous_scale=plotly.colors.diverging.Temps)
-    fig.update_layout(mapbox_style="carto-positron",
-                      mapbox_zoom=3.3, mapbox_center={"lat": 54.7, "lon": -3.43})
-    fig.update_layout(plotting.PLOT_COLORS)
-    return fig
-
-@app.callback(
     Output('region-choropleth', 'figure'),
     [Input('region-dropdown', 'value'),
      Input("region-choropleth-year-slider", "value")]
@@ -344,7 +506,7 @@ def update_region_choropleth(location, year_value):
                                range_color=(0, max_energy), color_continuous_scale=plotly.colors.diverging.Temps)
     fig.update_layout(mapbox_style="carto-positron",
                       mapbox_zoom=3.7, mapbox_center={"lat": region_geojson["features"][0]["properties"]["lat"], "lon": region_geojson["features"][0]["properties"]["long"]})
-    fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_layout(plotting.CHOROPLETH_COLORS)
     return fig
 
 @app.callback(
@@ -423,8 +585,8 @@ def update_header(year_value):
     Output('header-percentage-info', 'children'),
     Input('total-energy-consumption-year-slider', 'value')
 )
-def update__percentage_header(year_value):
-    return f"Percentage of energy source consumption per region ({year_value})"
+def update_percentage_header(year_value):
+    return f"Percentage of energy consumption per region ({year_value})"
 
 @app.callback(
     Output('region-info', 'children'),
