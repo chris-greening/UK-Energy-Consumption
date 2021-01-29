@@ -93,7 +93,7 @@ def all_regional_line_plot():
     )
     fig.update_layout(plotting.PLOT_COLORS)
     fig.update_traces(mode='markers+lines')
-    fig.update_yaxes(title_text="Cumulative % change")
+    fig.update_yaxes(title_text="GWh")
     fig.update_xaxes(showspikes=True)
     fig.update_yaxes(showspikes=True)
     return fig
@@ -137,7 +137,8 @@ app.layout = html.Div(children = [
                                 dcc.Graph(
                                     id="uk-total-consumption-time-series",
                                     figure=uk_total_time_series(),
-                                    hoverData={"points":[{"x": 2005}]}
+                                    hoverData={"points":[{"x": 2005}]},
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 )
                             ],
                             className="plot"
@@ -150,6 +151,7 @@ app.layout = html.Div(children = [
                                 html.H3(id="total-energy-consumption-bar-header"),
                                 dcc.Graph(
                                     id='total-energy-consumption-bar-plot',
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 )
                             ],
                             className="plot"
@@ -175,7 +177,8 @@ app.layout = html.Div(children = [
                                 ),
                                 dcc.Graph(
                                     id="total-energy-usage",
-                                    hoverData={"points": [{"x": 2005}]}
+                                    hoverData={"points": [{"x": 2005}]},
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 ),
                             ],
                             className="plot"
@@ -189,6 +192,7 @@ app.layout = html.Div(children = [
                                     id="total-energy-consumption-circle-header"),
                                 dcc.Graph(
                                     id='total-energy-consumption-percent-circle',
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 )
                             ],
                             className="plot"
@@ -240,13 +244,14 @@ app.layout = html.Div(children = [
                 html.Div(
                     html.Div(
                         children=[
-                            html.H3("Energy consumption (GWh)"),
+                            html.H3("Energy consumption"),
                             dcc.Markdown(
                                 "Hover over a data point to analyze breakdown by energy source per region"),
                             dcc.Graph(
                                 id="all-regions-line-plot",
                                 figure=all_regional_line_plot(),
-                                hoverData={"points": [{"x": 2005}]}
+                                hoverData={"points": [{"x": 2005}]},
+                                style={"height": plotting.PLOT_HEIGHT}
                             )
                         ],
                         className="plot"
@@ -263,6 +268,7 @@ app.layout = html.Div(children = [
                                 html.H3(id="header-info"),
                                 dcc.Graph(
                                     id='total-energy-consumption-bar',
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 ),
                             ],
                             className="plot"
@@ -275,6 +281,7 @@ app.layout = html.Div(children = [
                                 html.H3(id="header-percentage-info"),
                                 dcc.Graph(
                                     id='total-energy-consumption-percent',
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 ),
                             ],
                             className="plot"
@@ -334,7 +341,8 @@ app.layout = html.Div(children = [
                     id='region-dropdown',
                     options=[{"label": val, "value": val}
                              for val in dff["Name"].unique()],
-                    value='Wales'
+                    value='Wales',
+                    clearable=False
                 ),
                 style={"width": "200px", "margin-bottom": "2%"}
             ),
@@ -349,7 +357,8 @@ app.layout = html.Div(children = [
                                     "Hover over a data point to analyze breakdown by energy source"),
                                 dcc.Graph(
                                     id="region-consumption-time-series",
-                                    hoverData={"points": [{"x": 2005}]}
+                                    hoverData={"points": [{"x": 2005}]},
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 )
                             ],
                             className="plot"
@@ -363,6 +372,7 @@ app.layout = html.Div(children = [
                                     id="region-consumption-bar-header"),
                                 dcc.Graph(
                                     id='region-consumption-bar-plot',
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 )
                             ],
                             className="plot"
@@ -377,18 +387,18 @@ app.layout = html.Div(children = [
                     html.Div(
                         html.Div(
                             children=[
-                                html.H3(
-                                    "Energy consumption per resource"),
+                                html.H3("Energy consumption per resource"),
                                 dcc.RadioItems(
-                                    id='region-type-line',
+                                    id='yaxis-type-line',
                                     options=[{'label': i, 'value': i}
-                                             for i in ['Linear', 'Log']],
+                                            for i in ['Linear', 'Log']],
                                     value='Linear',
-                                    labelStyle={'display': 'inline-block'},
+                                    labelStyle={'display': 'inline-block'}
                                 ),
                                 dcc.Graph(
-                                    id="region-energy-usage",
-                                    hoverData={"points": [{"x": 2005}]}
+                                    id="region-time-series-scatter",
+                                    hoverData={"points": [{"x": 2005}]},
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 ),
                             ],
                             className="plot"
@@ -402,6 +412,7 @@ app.layout = html.Div(children = [
                                     id="region-energy-consumption-circle-header"),
                                 dcc.Graph(
                                     id='region-energy-consumption-percent-circle',
+                                    style={"height": plotting.PLOT_HEIGHT}
                                 )
                             ],
                             className="plot"
@@ -499,6 +510,16 @@ app.layout = html.Div(children = [
 ############################# CALLBACKS #############################
 
 ############################# HEADERS #############################
+
+
+@app.callback(
+    Output('region-energy-consumption-circle-header', 'children'),
+    Input('region-time-series-scatter', 'hoverData')
+)
+def update_circle_header(hoverData):
+    year_value = hoverData['points'][0]['x']
+    return f"Energy consumption (%) ({year_value})"
+
 @app.callback(
     Output('uk-circle-percentage-info', 'children'),
     Input('total-energy-consumption-year-slider', 'value')
@@ -512,7 +533,7 @@ def update_circle_header(year_value):
 )
 def update_consumption_bar_plot(hoverData):
     year_value = hoverData['points'][0]['x']
-    return f"Energy consumption per resource ({year_value})"
+    return f"Energy consumption ({year_value})"
 
 @app.callback(
     Output("region-consumption-bar-header", "children"),
@@ -520,7 +541,7 @@ def update_consumption_bar_plot(hoverData):
 )
 def update_region_consumption_bar_plot(hoverData):
     year_value = hoverData['points'][0]['x']
-    return f"Energy consumption per resource ({year_value})"
+    return f"Energy consumption ({year_value})"
 
 @app.callback(
     Output("total-energy-consumption-circle-header", "children"),
@@ -528,7 +549,7 @@ def update_region_consumption_bar_plot(hoverData):
 )
 def update_percent_circle_header(hoverData):
     year_value = hoverData['points'][0]['x']
-    return f"Percentage (%) per resource ({year_value})"
+    return f"Energy consumption (%) ({year_value})"
 
 @app.callback(
     Output('header-info', 'children'),
@@ -536,7 +557,7 @@ def update_percent_circle_header(hoverData):
 )
 def update_header(hoverData):
     year_value = hoverData['points'][0]['x']
-    return f"Energy consumption per resource ({year_value})"
+    return f"Energy consumption ({year_value})"
 
 @app.callback(
     Output('header-percentage-info', 'children'),
@@ -544,7 +565,7 @@ def update_header(hoverData):
 )
 def update_percentage_header(hoverData):
     year_value = hoverData['points'][0]['x']
-    return f"Percentage (%) per resource ({year_value})"
+    return f"Energy consumption (%) ({year_value})"
 
 @app.callback(
     Output('region-info', 'children'),
@@ -563,6 +584,7 @@ def total_uk_energy_bar_plot(hoverData):
     year_df = dff[dff["Year"] == year_value]
     year_df = year_df.groupby("Year").sum()
     long_total_df = melt_dataframe(year_df)
+    # long_total_df = long_total_df.sort_values(by="Energy type")
     fig = px.bar(
         long_total_df,
         x="Energy type",
@@ -572,6 +594,7 @@ def total_uk_energy_bar_plot(hoverData):
         range_y=[0, 750000]
     )
     fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_xaxes(categoryorder="total ascending")
 
     return fig
 
@@ -617,8 +640,7 @@ def update_graph(hoverData):
         color_discrete_map=plotting.ENERGY_SOURCE_COLORS,
         range_y=[min_y, max_y]
     )
-    fig.update_xaxes(title_text="")
-
+    fig.update_xaxes(title_text="", categoryorder="total ascending")
     fig.update_layout(plotting.PLOT_COLORS)
     return fig
 
@@ -666,6 +688,7 @@ def region_energy_bar_plot(location, hoverData):
         range_y=[min_y, max_y]
     )
     fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_xaxes(categoryorder="total ascending")
 
     return fig
 
@@ -802,16 +825,16 @@ def update_region_choropleth(location, year_value):
     return fig
 
 ############################# PIE CHARTS #############################
-@app.callback(
-    Output("total-energy-consumption-circle", "figure"),
-    Input("total-energy-consumption-year-slider", "value")
-)
-def update_region_circle(year_value):
-    year_df = dff[dff["Year"] == year_value]
-    fig = px.pie(year_df, values="All_Fuels_Total", names="Name", hole=.5)
-    fig.update_layout(plotting.PLOT_COLORS)
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    return fig
+# @app.callback(
+#     Output("total-energy-consumption-circle", "figure"),
+#     Input("total-energy-consumption-year-slider", "value")
+# )
+# def update_region_circle(year_value):
+#     year_df = dff[dff["Year"] == year_value]
+#     fig = px.pie(year_df, values="All_Fuels_Total", names="Name", hole=.5)
+#     fig.update_layout(plotting.PLOT_COLORS)
+#     fig.update_traces(textposition='inside', textinfo='percent+label')
+#     return fig
 
 @app.callback(
     Output("total-energy-consumption-percent-circle", "figure"),
@@ -820,6 +843,26 @@ def update_region_circle(year_value):
 def update_percent_circle(hoverData):
     year_value = hoverData['points'][0]['x']
     year_df = dff[dff["Year"] == year_value]
+    energy_df = year_df.groupby("Year").sum()
+    melted_energy_df = melt_dataframe(energy_df)
+    fig = px.pie(melted_energy_df, values="GWh", names="Energy type", color="Energy type",
+                 hole=.5, color_discrete_map=plotting.ENERGY_SOURCE_COLORS)
+    fig.update_layout(plotting.PLOT_COLORS)
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_layout(showlegend=False)
+
+    return fig
+
+
+@app.callback(
+    Output("region-energy-consumption-percent-circle", "figure"),
+    [Input('region-dropdown', 'value'),
+     Input('region-time-series-scatter', 'hoverData')],
+)
+def update_region_percent_circle(location, hoverData):
+    year_value = hoverData['points'][0]['x']
+    region_df = dff[dff["Name"] == location]
+    year_df = region_df[region_df["Year"] == year_value]
     energy_df = year_df.groupby("Year").sum()
     melted_energy_df = melt_dataframe(energy_df)
     fig = px.pie(melted_energy_df, values="GWh", names="Energy type", color="Energy type",
